@@ -7,8 +7,8 @@ cd build
 cmake .. 
 make
 ```
-
 ## How to run
+You have to give a .macros file as an input.
 ```
-./Packer "testcase.txt"
+./Packer macro_file.macros
 ```

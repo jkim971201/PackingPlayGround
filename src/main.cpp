@@ -1,4 +1,5 @@
 #include <iostream>
+
 #include "Packer.h"
 
 using namespace myPacker;
@@ -7,12 +8,9 @@ int main(int argc, char **argv)
 {
 	if(argc < 2)
 	{
-		std::cout << "no input file\n";
+		std::cout << "No input file. Please give .macros file...\n";
 		exit(0);
 	}
-
-	//QApplication app(argc, argv);
-	//QSize size = app.screens()[0]->size();
 
 	Packer pack;
 
@@ -20,11 +18,9 @@ int main(int argc, char **argv)
 
 	pack.readFile(txtfile);
 
-	pack.naivePacking();
+	//pack.naivePacking();
 
 	pack.show(argc, argv);
 
-	//return app.exec();
-	
 	return 0;
 }
