@@ -18,7 +18,10 @@ int main(int argc, char **argv)
 
 	pack.readFile(txtfile);
 
+	//////////////////////////////////////////////////
+	// Make your own macro placement algorithm!!!
 	//pack.naivePacking();
+	//////////////////////////////////////////////////
 
 	pack.show(argc, argv);
 
