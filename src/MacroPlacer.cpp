@@ -1,57 +1,29 @@
-#include <stdio.h>
+#include <cstdio>
 #include <iostream>
 #include <cassert>
 #include <algorithm>
 #include <map>
 
-#include "Packer.h"
+#include "MacroPlacer.h"
 #include "Painter.h"
+#include "objects/Pin.h"
+#include "objects/Net.h"
+#include "objects/Macro.h"
 
-namespace myPacker
+namespace macroplacer
 {
 
-void
-Macro::move(int dx, int dy)
-{
-  lx_ += dx;
-  ly_ += dy;
-
-  for(auto& pin : pins_)
-  {
-    pin->setCx(pin->cx() + dx);
-    pin->setCy(pin->cy() + dy);
-  }
-}
-
-void
-Macro::setLx(int newLx)
-{
-  int dx = newLx - lx_;
-  lx_ = newLx;
-  for(auto& pin : pins_)
-    pin->setCx(pin->cx() + dx);
-}
-
-void
-Macro::setLy(int newLy)
-{
-  int dy = newLy - ly_;
-  ly_ = newLy;
-  for(auto& pin : pins_)
-    pin->setCy(pin->cy() + dy);
-}
-
-Packer::Packer()
+MacroPlacer::MacroPlacer()
   : painter_  (nullptr),
-    coreLx_   (      0),
-    coreLy_   (      0),
-    coreUx_   (      0),
-    coreUy_   (      0),
-    totalWL_  (      0)
+    coreLx_   (0),
+    coreLy_   (0),
+    coreUx_   (0),
+    coreUy_   (0),
+    totalWL_  (0)
 {}
 
 void 
-Packer::readFile(const std::filesystem::path& file)
+MacroPlacer::readFile(const std::filesystem::path& file)
 {
   //std::cout << "Read " << file.string() << "..." << std::endl;
   
@@ -164,8 +136,8 @@ Packer::readFile(const std::filesystem::path& file)
   {
     Pin* pinPtr = &pin;
     pinPtrs_.push_back( pinPtr );
-    pinPtr->macro()->addPin( pinPtr );
-    pinTable[ pinPtr->name() ] = pinPtr;
+    pinPtr->getMacro()->addPin( pinPtr );
+    pinTable[ pinPtr->getName().data() ] = pinPtr;
     //std::cout << "Pin Name : " << pinPtr->name() << " MacroName from Pin   : " << pinPtr->macro()->name() << std::endl;
   }
 
@@ -220,8 +192,10 @@ Packer::readFile(const std::filesystem::path& file)
       exit(0);
     }
 
-    netInsts_.push_back( Net(numNetRead++, pinPtr1, pinPtr2) );
+    netInsts_.push_back( Net(numNetRead++)  );
     Net* netPtr = &(netInsts_.back());
+    netPtr->addPin(pinPtr1);
+    netPtr->addPin(pinPtr2);
     netPtrs_.push_back( netPtr );
     pinPtr1->setNet( netPtr );
     pinPtr2->setNet( netPtr );
@@ -241,7 +215,7 @@ Packer::readFile(const std::filesystem::path& file)
 }
 
 void
-Packer::updateWL()
+MacroPlacer::updateWL()
 {
   totalWL_ = 0;
   for(auto& net : netPtrs_)
@@ -252,7 +226,7 @@ Packer::updateWL()
 }
 
 void
-Packer::naivePacking()
+MacroPlacer::naivePacking()
 {
   //std::sort( macroPtrs_.begin(), macroPtrs_.end(), sortByHeight() );
   std::sort( macroPtrs_.begin(), macroPtrs_.end(), [](Macro* a, Macro* b){ return a->h() > b->h(); } );
@@ -292,7 +266,7 @@ Packer::naivePacking()
 }
 
 int
-Packer::show(int& argc, char* argv[])
+MacroPlacer::show(int& argc, char* argv[])
 {
   QApplication app(argc, argv);
   QSize size = app.screens()[0]->size();

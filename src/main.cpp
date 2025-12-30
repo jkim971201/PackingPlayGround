@@ -1,8 +1,8 @@
 #include <iostream>
 
-#include "Packer.h"
+#include "MacroPlacer.h"
 
-using namespace myPacker;
+using namespace macroplacer;
 
 int main(int argc, char **argv)
 {
@@ -12,18 +12,18 @@ int main(int argc, char **argv)
     exit(0);
   }
 
-  Packer pack;
+  MacroPlacer mpl;
 
   std::filesystem::path txtfile = argv[1];
 
-  pack.readFile(txtfile);
+  mpl.readFile(txtfile);
 
   //////////////////////////////////////////////////
   // Make your own macro placement algorithm!!!
   //pack.naivePacking();
   //////////////////////////////////////////////////
 
-  pack.show(argc, argv);
+  mpl.show(argc, argv);
 
   return 0;
 }

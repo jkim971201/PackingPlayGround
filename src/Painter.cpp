@@ -2,25 +2,23 @@
 #include <fstream>
 #include <sstream>
 #include <random>
-#include <time.h>
+#include <ctime>
 
 #include "Painter.h"
+#include "objects/Pin.h"
+#include "objects/Net.h"
+#include "objects/Macro.h"
 
-namespace myPacker
+namespace macroplacer
 {
 
 Painter::Painter(QSize size, QColor color, int coreUx, int coreUy, int coreLx, int coreLy, int64_t wl)
   : windowSize_ (            size),
-    baseColor_  (           color),
-    w_          (               0),
-    h_          (               0),
     coreLx_     (          coreLx),
     coreLy_     (          coreLy),
     coreDx_     ( coreUx - coreLx),
     coreDy_     ( coreUy - coreLy),
-    offset_     (             100),
-    scaleX_     (             1.0),
-    scaleY_     (             1.0),
+    scale_      (             1.0),
     wl_         (              wl)
 {
   init();
@@ -29,61 +27,54 @@ Painter::Painter(QSize size, QColor color, int coreUx, int coreUy, int coreLx, i
 void
 Painter::init()
 {
-  w_ = windowSize_.width()  / 4;
-  h_ = windowSize_.height() / 4;
+  int window_w = windowSize_.width()  / 2;
+  int window_h = windowSize_.height() / 2;
+  window_length_ = std::min(window_w, window_h);
+  offset_ = window_length_ * 0.05;
 
-  scaleX_ = static_cast<float>(w_) / static_cast<float>(coreDx_);
-  scaleY_ = static_cast<float>(h_) / static_cast<float>(coreDy_);
+  float scale_x = static_cast<float>(window_length_) / static_cast<float>(coreDx_);
+  float scale_y = static_cast<float>(window_length_) / static_cast<float>(coreDy_);
+  scale_ = std::min(scale_x, scale_y);
 
-  printf("Width  of the window is : %d\n", w_);
-  printf("Height of the window is : %d\n", h_);
+  printf("Width  of the window is : %d\n", window_w);
+  printf("Height of the window is : %d\n", window_h);
 
-  printf("ScaleX : %f\n", scaleX_);
-  printf("ScaleY : %f\n", scaleY_);
-
-  this->resize(w_ + 2 * offset_, h_ + 2 * offset_);
+  this->resize(window_length_ + 2 * offset_, window_length_ + 2 * offset_);
 
   QPalette palette( Painter::palette() );
-  palette.setColor( backgroundRole(), baseColor_ );
+  palette.setColor( backgroundRole(), Qt::black);
 
   this->setPalette(palette);
-
-  rectFillColor_ = Qt::red;
-  rectLineColor_ = Qt::black;
-
   this->setWindowTitle( "Macro Placement Visualization" );
 }
 
 void
 Painter::drawRect(QPainter* painter, QRectF& rect, QColor rectColor, QColor lineColor)
 {
-  painter->setPen( QPen(lineColor , 2) );
-  painter->setBrush(rectColor);
+  QPen pen_for_std;
+  pen_for_std.setWidthF(3.5f);
+  pen_for_std.setColor(lineColor);
+  pen_for_std.setJoinStyle(Qt::PenJoinStyle::BevelJoin);
+  pen_for_std.setStyle(Qt::PenStyle::SolidLine);
 
+  QBrush brush_for_std(rectColor, Qt::BrushStyle::Dense6Pattern);
+  painter->setBrush(brush_for_std);
+  painter->setPen(pen_for_std);
   painter->drawRect( rect );
   painter->fillRect( rect , painter->brush() );
-}
-
-void
-Painter::drawRect(QPainter* painter, int lx, int ly, int w, int h)
-{
-  QRect test(lx, ly, w, h);
-
-  painter->drawRect( test );
-  painter->fillRect( test, painter->brush() );
 }
 
 void
 Painter::setQRect(std::vector<Macro*>& macros)
 {
   rectVector_.reserve(macros.size());
-
-  for(auto& macro : macros)
+  for(const auto& macro : macros)
   {
-    rectVector_.push_back( QRectF( (          macro->lx() - coreLx_) * scaleX_ + offset_, 
-                                   (coreDy_ - macro->ly() + coreLy_) * scaleY_ + offset_, 
-                                   +macro->w() * scaleX_, 
-                                   -macro->h() * scaleY_) );
+    float lx = macro->lx() * scale_;
+    float ly = macro->ly() * scale_;
+    float dx = macro->w() * scale_;
+    float dy = macro->h() * scale_;
+    rectVector_.push_back(QRectF(lx, ly, dx, dy));
   }
 }
 
@@ -97,49 +88,64 @@ Painter::setNetlist(std::vector<Net*>& nets)
 void
 Painter::drawNet(QPainter* painter, const Net* net)
 {
-  QPointF p1((          net->pin1()->cx() - coreLx_) * scaleX_ + offset_, 
-             (coreDy_ - net->pin1()->cy() + coreLy_) * scaleY_ + offset_);
+  const auto pins = net->getPins();
 
-  QPointF p2((          net->pin2()->cx() - coreLx_) * scaleX_ + offset_, 
-             (coreDy_ - net->pin2()->cy() + coreLy_) * scaleY_ + offset_);
+  // com : center of mass
+  int num_pin = pins.size();
+  float com_x = 0;
+  float com_y = 0;
+  for(auto pin : pins)
+  {
+    com_x += pin->getCx() / num_pin;
+    com_y += pin->getCy() / num_pin;
+  }
 
-  painter->drawLine(p1, p2);
+  for(auto pin : pins)
+  {
+    float pin_cx = pin->getCx();
+    float pin_cy = pin->getCy();
+    QPointF p1(pin_cx * scale_, pin_cy * scale_);
+    QPointF p2(com_x * scale_, com_y * scale_);
+    painter->drawLine(p1, p2);
+  }
 }
 
 void
 Painter::paintEvent(QPaintEvent* event)
 {
-  //std::cout << "Start PaintEvent" << std::endl;
-
   QPainter painter(this);
-
-  painter.setRenderHint(QPainter::Antialiasing);
-
   painter.setPen( QPen(Qt::white , 3) );
 
-  //printf("coreDx_ : %d scaleX_ : %f coreDx_ * scaleX_ : %f\n", coreDx_, scaleX_, coreDx_ * scaleX_);
-  //printf("coreDy_ : %d scaleY_ : %f coreDy_ * scaleY_ : %f\n", coreDy_, scaleY_, coreDy_ * scaleY_);
-  //QRectF core(offset_, optH_ * scaleY_ + offset_, optW_ * scaleX_, -optH_ * scaleY_);
-  QRectF core(offset_, offset_, w_, h_);
-  painter.setPen( QPen(Qt::blue , 2) );
+  painter.translate(offset_, offset_);
+
+  float core_lx = coreLx_ * scale_;
+  float core_ly = coreLy_ * scale_;
+  float core_dx = coreDx_ * scale_;
+  float core_dy = coreDy_ * scale_;
+  QRectF core(core_lx, core_ly, core_dx, core_dy);
+
+  QPen pen_for_die;
+  pen_for_die.setColor(Qt::gray);
+  pen_for_die.setStyle(Qt::PenStyle::DashDotLine);
+  pen_for_die.setWidthF(4.0f);
+  painter.setPen(pen_for_die);
   painter.setBrush( QBrush(Qt::NoBrush) );
   painter.drawRect( core );
 
   for(auto& rect : rectVector_)
-    drawRect( &painter, rect , Qt::red, Qt::black);
+    drawRect( &painter, rect , Qt::gray, Qt::black);
 
-  painter.setPen( QPen(Qt::green, 1) );
+  painter.setPen( QPen(Qt::darkGreen, 1) );
   for(auto& net : netVector_)
     drawNet( &painter, net );
 
-  std::string wlInfo = "Total WL : " + std::to_string(wl_);
-
-  painter.setPen( QPen(Qt::black, 1) );
+  painter.setPen( QPen(Qt::gray, 1) );
   QFont font = painter.font();
   font.setPointSize(25);
   painter.setFont(font);
-  painter.drawText(offset_, offset_ - 20, QString::fromStdString(wlInfo) );
-  //std::cout << "End PaintEvent" << std::endl;
+  std::string wlInfo = "Total WL : " + std::to_string(wl_);
+  painter.drawText(0, 0, QString::fromStdString(wlInfo) );
+  painter.scale(1.0, -1.0);
 }
 
 }
