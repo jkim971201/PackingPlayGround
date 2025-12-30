@@ -22,7 +22,11 @@ int Macro::getCy() const { return ly_ + h_ / 2; }
 
 int Macro::getWidth() const { return w_; }
 int Macro::getHeight() const { return h_; }
+
+bool Macro::isTerminal() const { return is_terminal_; }
+
 std::string_view Macro::getName() const { return name_; }
+
 void Macro::addPin(Pin* pin) { pins_.push_back(pin); }
 
 void

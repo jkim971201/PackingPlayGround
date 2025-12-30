@@ -19,6 +19,9 @@ int main(int argc, char **argv)
   std::filesystem::path nets_file = argv[3];
 
   mpl.readFile(block_file, pl_file, nets_file);
+
+  mpl.run();
+
   mpl.show(argc, argv);
 
   return 0;

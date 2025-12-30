@@ -11,8 +11,12 @@
 #include "objects/Net.h"
 #include "objects/Macro.h"
 
+#include "EigenDef.h"
+
 namespace macroplacer
 {
+
+using namespace cuda_linalg;
 
 class Painter;
 
@@ -29,7 +33,7 @@ class MacroPlacer
       const std::filesystem::path& pl_file,
       const std::filesystem::path& nets_file);
 
-    void naivePacking();
+    void run();
 
     int show(int& argc, char* argv[]);
 
@@ -46,6 +50,24 @@ class MacroPlacer
 
   private:
 
+    // MacroPlacer.cpp
+    void updateWL();
+    void computeFixedInfo();
+    void createClusterLaplacian(EigenSMatrix& L);
+    void extractPartialLaplacian(
+      const EigenVector&  xf,
+      const EigenVector&  yf,
+      const EigenSMatrix& L, 
+            EigenSMatrix& Lff,
+            EigenSMatrix& Lmm,
+            EigenVector&  Lmf_xf,
+            EigenVector&  Lmf_yf);
+
+    EigenVector solveSDP(
+      const EigenSMatrix& Lmm,
+      const EigenVector& Lmf_xf); // or Lmf_yf
+
+    // FileIO.cpp
     void readBlock(const std::filesystem::path& file);
     void readPlacement(const std::filesystem::path& file);
     void readNet(const std::filesystem::path& file);
@@ -58,8 +80,6 @@ class MacroPlacer
 
     int64_t totalWL_;
 
-    void updateWL();
-
     std::vector<Net>   net_insts_;
     std::vector<Net*>  net_ptrs_;
     
@@ -68,9 +88,27 @@ class MacroPlacer
     std::vector<Macro>  macro_insts_;
     std::vector<Macro*> macro_ptrs_;
 
+    std::vector<Macro*> movable_;
+    std::vector<Macro*> fixed_;
+
     std::unique_ptr<Painter> painter_;
 
     std::unordered_map<std::string, Macro*> name_to_macro_ptr_;
+
+    // For SDP
+    EigenVector  xm_;     // Movable x
+    EigenVector  ym_;     // Movalbe y
+
+    EigenVector  xf_;     // Fixed x
+    EigenVector  yf_;     // Fixed y
+
+    EigenVector  Lmf_xf_; // Lmf * xf
+    EigenVector  Lmf_yf_; // Lmf * yf
+
+    EigenSMatrix L_;      // Full Laplacian
+    EigenSMatrix Lmm_;    // Laplacian between movable cells
+    EigenSMatrix Lff_;    // Laplacian between fixed   cells
+
 };
 
 }
