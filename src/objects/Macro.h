@@ -13,20 +13,26 @@ class Macro
 {
   public:
 
-    Macro(const std::string& name, int lx, int ly, int w, int h);
+    Macro(const std::string& name, int lx, int ly, int w, int h, bool is_terminal);
 
     // Getters
-    int lx() const; 
-    int ly() const; 
-    int w() const; 
-    int h() const; 
-    bool isPacked() const; 
-    std::string_view name() const; 
+    int getLx() const; 
+    int getLy() const; 
+    int getUx() const; 
+    int getUy() const; 
+    int getCx() const; 
+    int getCy() const; 
+    int getWidth() const; 
+    int getHeight() const; 
+    bool isTerminal() const; 
+    std::string_view getName() const; 
 
+    // NOTE
+    // If you want to change the coordinates of macro location, 
+    // then you also have to change the coordinates of its pins.
+    // This will be done by setLx(), setLy(), move() automatically.
+    
     // Setters
-    // NOTE: If you want to change the coordinates of macro location, 
-    //       then you also have to change the coordinates of its pins.
-    //       This will be done by setLx(), setLy(), move() automatically.
     void setLx(int lx);
     void setLy(int ly);
     void setPacked();
@@ -41,7 +47,7 @@ class Macro
     int  ly_;
     int  w_;
     int  h_;
-    bool isPacked_;
+    bool is_terminal_;
 
     std::vector<Pin*> pins_;
 };

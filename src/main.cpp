@@ -6,23 +6,19 @@ using namespace macroplacer;
 
 int main(int argc, char **argv)
 {
-  if(argc < 2)
+  if(argc != 4)
   {
-    std::cout << "No input file. Please give .macros file...\n";
+    std::cout << "Need 3 input files (.blocks .pl .nets)\n";
     exit(0);
   }
 
   MacroPlacer mpl;
 
-  std::filesystem::path txtfile = argv[1];
+  std::filesystem::path block_file = argv[1];
+  std::filesystem::path pl_file = argv[2];
+  std::filesystem::path nets_file = argv[3];
 
-  mpl.readFile(txtfile);
-
-  //////////////////////////////////////////////////
-  // Make your own macro placement algorithm!!!
-  //pack.naivePacking();
-  //////////////////////////////////////////////////
-
+  mpl.readFile(block_file, pl_file, nets_file);
   mpl.show(argc, argv);
 
   return 0;

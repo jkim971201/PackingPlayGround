@@ -1,16 +1,16 @@
 #include "Pin.h"
+#include "Net.h"
+#include "Macro.h"
 
 namespace macroplacer
 {
 
-Pin::Pin(const std::string& name, int id, int cx, int cy, Macro* macro)
-  : name_ (name),
-    id_   (id), 
-    cx_   (cx), 
-    cy_   (cy), 
-    net_  (nullptr), 
-    macro_(macro)
-{}
+Pin::Pin(Macro* macro, Net* net)
+  : macro_(macro), net_(net)
+{
+  cx_ = macro->getCx();
+  cy_ = macro->getCy();
+}
 
 Net*
 Pin::getNet() 
@@ -24,17 +24,23 @@ Pin::getMacro()
   return macro_; 
 }
 
-std::string_view 
-Pin::getName() const 
-{ 
-  return name_; 
+const Net*
+Pin::getNet() const
+{
+  return net_;
 }
 
-int 
-Pin::getID() const 
+const Macro* 
+Pin::getMacro() const
 { 
-  return id_;
-}    
+  return macro_; 
+}
+
+std::string_view
+Pin::getMacroName() const
+{ 
+  return macro_->getName();
+}
 
 int 
 Pin::getCx() const 
@@ -46,12 +52,6 @@ int
 Pin::getCy() const 
 { 
   return cy_; 
-}
-
-void 
-Pin::setNet(Net* net) 
-{
-  net_ = net; 
 }
 
 void 

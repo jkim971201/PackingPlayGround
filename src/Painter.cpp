@@ -70,10 +70,10 @@ Painter::setQRect(std::vector<Macro*>& macros)
   rectVector_.reserve(macros.size());
   for(const auto& macro : macros)
   {
-    float lx = macro->lx() * scale_;
-    float ly = macro->ly() * scale_;
-    float dx = macro->w() * scale_;
-    float dy = macro->h() * scale_;
+    float lx = macro->getLx() * scale_;
+    float ly = macro->getLy() * scale_;
+    float dx = macro->getWidth() * scale_;
+    float dy = macro->getHeight() * scale_;
     rectVector_.push_back(QRectF(lx, ly, dx, dy));
   }
 }
@@ -96,14 +96,14 @@ Painter::drawNet(QPainter* painter, const Net* net)
   float com_y = 0;
   for(auto pin : pins)
   {
-    com_x += pin->getCx() / num_pin;
-    com_y += pin->getCy() / num_pin;
+    com_x += pin.getCx() / num_pin;
+    com_y += pin.getCy() / num_pin;
   }
 
   for(auto pin : pins)
   {
-    float pin_cx = pin->getCx();
-    float pin_cy = pin->getCy();
+    float pin_cx = pin.getCx();
+    float pin_cy = pin.getCy();
     QPointF p1(pin_cx * scale_, pin_cy * scale_);
     QPointF p2(com_x * scale_, com_y * scale_);
     painter->drawLine(p1, p2);
@@ -139,12 +139,19 @@ Painter::paintEvent(QPaintEvent* event)
   for(auto& net : netVector_)
     drawNet( &painter, net );
 
-  painter.setPen( QPen(Qt::gray, 1) );
+
   QFont font = painter.font();
-  font.setPointSize(25);
+  font.setBold(true);
+  const qreal text_font_size = scale_ * 0.025 * coreDx_;
+  font.setPointSizeF(text_font_size);
   painter.setFont(font);
+  auto pen_for_text = painter.pen();
+  pen_for_text.setColor(Qt::white);
+  painter.setPen(pen_for_text);
+
   std::string wlInfo = "Total WL : " + std::to_string(wl_);
-  painter.drawText(0, 0, QString::fromStdString(wlInfo) );
+  painter.drawText(0, -offset_ * 0.2, QString::fromStdString(wlInfo) );
+
   painter.scale(1.0, -1.0);
 }
 

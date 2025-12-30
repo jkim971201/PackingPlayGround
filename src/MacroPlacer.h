@@ -24,15 +24,19 @@ class MacroPlacer
     MacroPlacer();
 
     // APIs
-    void readFile(const std::filesystem::path& file);
+    void readFile(
+      const std::filesystem::path& block_file,
+      const std::filesystem::path& pl_file,
+      const std::filesystem::path& nets_file);
+
     void naivePacking();
 
     int show(int& argc, char* argv[]);
 
     // Getters
-    std::vector<Macro*>& macros() { return macroPtrs_; }
-    std::vector<Net*>&     nets() { return   netPtrs_; }
-    std::vector<Pin*>&     pins() { return   pinPtrs_; }
+    std::vector<Macro*>& macros() { return macro_ptrs_; }
+    std::vector<Net*>&     nets() { return   net_ptrs_; }
+    std::vector<Pin*>&     pins() { return   pin_ptrs_; }
 
     int coreLx()  const { return coreLx_;  }
     int coreLy()  const { return coreLy_;  }
@@ -41,6 +45,11 @@ class MacroPlacer
     int64_t totalWL() const { return totalWL_; }
 
   private:
+
+    void readBlock(const std::filesystem::path& file);
+    void readPlacement(const std::filesystem::path& file);
+    void readNet(const std::filesystem::path& file);
+    void initCore();
 
     int coreLx_;
     int coreLy_;
@@ -51,16 +60,17 @@ class MacroPlacer
 
     void updateWL();
 
-    std::vector<Pin>   pinInsts_;
-    std::vector<Pin*>  pinPtrs_;
+    std::vector<Net>   net_insts_;
+    std::vector<Net*>  net_ptrs_;
+    
+    std::vector<Pin*>  pin_ptrs_;
 
-    std::vector<Net>   netInsts_;
-    std::vector<Net*>  netPtrs_;
-
-    std::vector<Macro>  macroInsts_;
-    std::vector<Macro*> macroPtrs_;
+    std::vector<Macro>  macro_insts_;
+    std::vector<Macro*> macro_ptrs_;
 
     std::unique_ptr<Painter> painter_;
+
+    std::unordered_map<std::string, Macro*> name_to_macro_ptr_;
 };
 
 }

@@ -4,25 +4,25 @@
 namespace macroplacer
 {
 
-Macro::Macro(const std::string& name, int lx, int ly, int w, int h)
-  : lx_       (lx   ),
-    ly_       (ly   ),
-    w_        (w    ),
-    h_        (h    ),
-    name_     (name ),
-    isPacked_ (false)
+Macro::Macro(const std::string& name, int lx, int ly, int w, int h, bool is_terminal)
+  : lx_(lx),
+    ly_(ly),
+    w_ (w),
+    h_ (h),
+    name_(name),
+    is_terminal_(is_terminal)
 {}
 
-int Macro::lx() const { return lx_; }
-int Macro::ly() const { return ly_; }
+int Macro::getLx() const { return lx_; }
+int Macro::getLy() const { return ly_; }
+int Macro::getUx() const { return lx_ + w_; }
+int Macro::getUy() const { return ly_ + h_; }
+int Macro::getCx() const { return lx_ + w_ / 2; }
+int Macro::getCy() const { return ly_ + h_ / 2; }
 
-int Macro::w() const { return w_; }
-int Macro::h() const { return h_; }
-
-bool Macro::isPacked() const { return isPacked_; }
-std::string_view Macro::name() const { return name_; }
-
-void Macro::setPacked() { isPacked_ = true; }  
+int Macro::getWidth() const { return w_; }
+int Macro::getHeight() const { return h_; }
+std::string_view Macro::getName() const { return name_; }
 void Macro::addPin(Pin* pin) { pins_.push_back(pin); }
 
 void

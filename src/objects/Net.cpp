@@ -1,5 +1,4 @@
 #include "Net.h"
-#include "Pin.h"
 
 #include <limits>
 
@@ -20,22 +19,22 @@ Net::wl() const
   return wl_; 
 } 
 
-std::vector<Pin*>&
+std::vector<Pin>&
 Net::getPins()
 {
   return pins_;
 }
 
-const std::vector<Pin*>&
+const std::vector<Pin>&
 Net::getPins() const
 {
   return pins_;
 }
 
 void 
-Net::addPin(Pin* pin)
+Net::addPin(Macro* macro_ptr)
 {
-  pins_.push_back(pin);
+  pins_.emplace_back(macro_ptr, this);
 }
 
 void
@@ -46,12 +45,12 @@ Net::updateWL()
   int min_cx = std::numeric_limits<int>::max();
   int min_cy = std::numeric_limits<int>::max();
 
-  for(const auto pin : pins_)
+  for(const auto& pin : pins_)
   {
-    max_cx = std::max(pin->getCx(), max_cx);
-    max_cy = std::max(pin->getCy(), max_cy);
-    min_cx = std::min(pin->getCx(), min_cx);
-    min_cy = std::min(pin->getCy(), min_cy);
+    max_cx = std::max(pin.getCx(), max_cx);
+    max_cy = std::max(pin.getCy(), max_cy);
+    min_cx = std::min(pin.getCx(), min_cx);
+    min_cy = std::min(pin.getCy(), min_cy);
   }
 
   wl_ = max_cx - min_cx + max_cy - min_cy;
