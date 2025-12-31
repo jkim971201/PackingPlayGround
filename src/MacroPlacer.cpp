@@ -13,12 +13,12 @@ namespace macroplacer
 {
 
 MacroPlacer::MacroPlacer()
-  : painter_  (nullptr),
-    coreLx_   (0),
-    coreLy_   (0),
-    coreUx_   (0),
-    coreUy_   (0),
-    totalWL_  (0)
+  : painter_ (nullptr),
+    coreLx_  (0),
+    coreLy_  (0),
+    coreUx_  (0),
+    coreUy_  (0),
+    totalWL_ (0)
 {}
 
 void
@@ -68,6 +68,8 @@ MacroPlacer::run()
   updateWL();
 
   printf("TotalWL : %ld\n", totalWL_);
+
+  writeBookshelf();
 }
 
 void

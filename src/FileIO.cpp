@@ -1,8 +1,7 @@
 #include <cstdio>
-#include <iostream>
+#include <iostream> // for std::cerr
 #include <cassert>
-#include <algorithm>
-#include <map>
+#include <fstream>
 
 #include "MacroPlacer.h"
 #include "Painter.h"
@@ -45,6 +44,7 @@ MacroPlacer::readBlock(const std::filesystem::path& block_file)
   printf("Read .blocks file : %s\n", block_file.string().c_str());
   std::string filename = block_file.string();
   size_t dot_pos = filename.find_last_of('.');
+  size_t slash_pos   = filename.find_last_of('/');
   std::string suffix = filename.substr(dot_pos + 1); 
 
   if(suffix != "blocks")
@@ -52,6 +52,8 @@ MacroPlacer::readBlock(const std::filesystem::path& block_file)
     std::cerr << "This file is not .blocks file..." << std::endl;
     exit(1);
   }
+
+  design_name_ = filename.substr(slash_pos +1, dot_pos - slash_pos - 1);
 
   std::ifstream ifs;
   ifs.open(block_file);
@@ -132,8 +134,10 @@ MacroPlacer::readBlock(const std::filesystem::path& block_file)
   }
 
   assert(macro_insts_.size() == num_hard_rect + num_terminals);
-  printf("NumSoft : %d\n", num_soft_rect);
-  printf("NumHard : %d\n", num_hard_rect);
+  //printf("NumSoft : %d\n", num_soft_rect);
+  //printf("NumHard : %d\n", num_hard_rect);
+
+  num_terminals_ = num_terminals;
 }
 
 void
@@ -334,12 +338,190 @@ MacroPlacer::readFile(
   printf("=====================================\n");
   printf("DB Info\n");
   printf("-------------------------------------\n");
+  printf("Design  : %s\n", design_name_.c_str());
   printf("NumNode : %d\n", macro_ptrs_.size());
-  printf("NumNet  : %d\n",   net_ptrs_.size());
-  printf("NumPin  : %d\n",   pin_ptrs_.size());
+  printf("NumTerm : %d\n", num_terminals_);
+  printf("NumNet  : %d\n", net_ptrs_.size());
+  printf("NumPin  : %d\n", pin_ptrs_.size());
   printf("Core (%d, %d) - (%d, %d)\n", coreLx_, coreLy_, coreUx_, coreUy_);
   printf("Initial HPWL: %ld\n", totalWL_);
   printf("=====================================\n");
+}
+
+void
+MacroPlacer::writeBookshelf() const
+{
+  std::string output_design_name
+   = design_name_ + "_bookshelf";
+
+  std::string output_dir = output_design_name;
+
+  std::string aux_file_name = output_design_name + ".aux";
+  std::string pl_file_name = output_design_name + ".pl";
+  std::string nets_file_name = output_design_name + ".nets";
+  std::string scl_file_name = output_design_name + ".scl";
+  std::string nodes_file_name = output_design_name + ".nodes";
+  std::string wts_file_name = output_design_name + ".wts";
+
+  std::string aux_file_name_dir = output_dir + "/" + aux_file_name;
+  std::string pl_file_name_dir = output_dir + "/" +  pl_file_name;
+  std::string nets_file_name_dir = output_dir + "/" + nets_file_name;
+  std::string scl_file_name_dir = output_dir + "/" + scl_file_name;
+  std::string nodes_file_name_dir = output_dir + "/" + nodes_file_name;
+  std::string wts_file_name_dir = output_dir + "/" + wts_file_name;
+
+  std::string command = "mkdir -p " + output_dir;
+  std::system(command.c_str());
+
+  // Step #1. Write .aux
+  std::ofstream aux_output;
+  aux_output.open(aux_file_name_dir);
+
+  aux_output << "RowBasedPlacement :" << " ";
+  aux_output << pl_file_name << " ";
+  aux_output << nets_file_name << " ";
+  aux_output << scl_file_name << " ";
+  aux_output << nodes_file_name << " ";
+  // If wts filename is not written in aux, 
+  // ntuplace3 binaray makes segmentation fault.
+  aux_output << wts_file_name;
+
+  aux_output.close();
+  printf("Write results to %s\n", aux_file_name.c_str());
+
+  writePl(pl_file_name_dir);
+  writeNodes(nodes_file_name_dir);
+  writeScl(scl_file_name_dir);
+  writeNets(nets_file_name_dir);
+}
+
+void
+MacroPlacer::writePl(std::string_view pl_file_name) const
+{
+  std::ofstream pl_output;
+  pl_output.open(pl_file_name.data());
+
+  // Print Headline
+  pl_output << "UCLA pl 1.0" << std::endl;
+  pl_output << "# Created by SkyPlace (jkim97@postech.ac.kr)" << std::endl;
+  pl_output << std::endl;
+
+  for(const auto& macro : macro_insts_)
+  {
+    int lx_to_write = macro.getLx();
+    int ly_to_write = macro.getLy();
+
+    pl_output << macro.getName() << " ";
+    pl_output << lx_to_write << " ";
+    pl_output << ly_to_write << " : N";
+    if(macro.isTerminal() == true)
+      pl_output << " /FIXED";
+    pl_output << std::endl;
+  }
+  
+  pl_output.close();
+  printf("Write results to %s\n", pl_file_name.data());
+}
+
+void
+MacroPlacer::writeScl(std::string_view scl_file_name) const
+{
+  constexpr int k_row_h = 10;
+  constexpr int k_sitewidth = 1;
+  const int num_rows = (coreUy_ - coreLy_) / k_row_h;
+  const int num_sites = (coreUx_ - coreLx_) / k_sitewidth;
+
+  std::ofstream scl_output;
+  scl_output.open(scl_file_name.data());
+
+  // Print Headline
+  scl_output << "UCLA scl 1.0" << std::endl;
+  scl_output << "# Created by SkyPlace (jkim97@postech.ac.kr)" << std::endl;
+  scl_output << std::endl;
+
+  scl_output << "NumRows : " << num_rows << std::endl;
+  scl_output << std::endl;
+
+  int coordinate = coreLy_;
+  for(int i = 0; i < num_rows; i++)
+  {
+    scl_output << "CoreRow Horizontal" << std::endl;
+    scl_output << "  Coordinate   : "  << coordinate << std::endl;
+    scl_output << "  Height       : "  << k_row_h << std::endl;
+    scl_output << "  Sitewidth    : "  << k_sitewidth << std::endl;
+    scl_output << "  Sitespacing  : 1" << std::endl;
+    scl_output << "  Siteorient   : 1" << std::endl;
+    scl_output << "  Sitesymmetry : 1" << std::endl;
+    scl_output << "  SubrowOrigin : "  << coreLx_;
+    scl_output << "  NumSites     : "  << num_sites << std::endl;
+    scl_output << "End" << std::endl;
+    coordinate += k_row_h;
+  }
+
+  scl_output.close();
+  printf("Write results to %s\n", scl_file_name.data());
+}
+
+void
+MacroPlacer::writeNodes(std::string_view nodes_file_name) const
+{
+  std::ofstream nodes_output;
+  nodes_output.open(nodes_file_name.data());
+
+  // Print Headline
+  nodes_output << "UCLA nodes 1.0" << std::endl;
+  nodes_output << "# Created by SkyPlace (jkim97@postech.ac.kr)" << std::endl;
+  nodes_output << std::endl;
+
+  nodes_output << "NumNodes : " << macro_insts_.size() << std::endl;
+  nodes_output << "NumTerminals : " << num_terminals_ << std::endl;
+
+  for(const auto& macro : macro_insts_)
+  {
+    int width  = macro.getWidth();
+    int height = macro.getHeight();
+
+    nodes_output << macro.getName() << " ";
+    nodes_output << width << " ";
+    nodes_output << height << " ";
+    if(macro.isTerminal() == true)
+      nodes_output << "terminal";
+    nodes_output << std::endl;
+  }
+  
+  nodes_output.close();
+  printf("Write results to %s\n", nodes_file_name.data());
+}
+
+void
+MacroPlacer::writeNets(std::string_view nets_file_name) const
+{
+  std::ofstream nets_output;
+  nets_output.open(nets_file_name.data());
+
+  // Print Headline
+  nets_output << "UCLA nets 1.0" << std::endl;
+  nets_output << "# Created by SkyPlace (jkim97@postech.ac.kr)" << std::endl;
+  nets_output << std::endl;
+
+  nets_output << "NumNets : " << net_insts_.size() << std::endl;
+  nets_output << "NumPins : " << pin_ptrs_.size() << std::endl;
+  nets_output << std::endl;
+
+  int num_net_write = 0;
+  for(const auto& net : net_insts_)
+  {
+    const auto pins = net.getPins();
+    const int net_degree = pins.size();
+    const std::string net_name = "net" + std::to_string(num_net_write++);
+
+    nets_output << "NetDegree : " << net_degree << "  " << net_name << std::endl;
+    for(const auto& pin : pins)
+      nets_output << "  " << pin.getMacroName() << " I : 0 0" << std::endl;
+  }
+  
+  nets_output.close();
+  printf("Write results to %s\n", nets_file_name.data());
 }
 
 }

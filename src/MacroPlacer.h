@@ -72,11 +72,20 @@ class MacroPlacer
     void readPlacement(const std::filesystem::path& file);
     void readNet(const std::filesystem::path& file);
     void initCore();
+    void writeBookshelf() const;
+    void writePl(std::string_view pl_file_name) const;
+    void writeScl(std::string_view scl_file_name) const;
+    void writeNodes(std::string_view nodes_file_name) const;
+    void writeNets(std::string_view nets_file_name) const;
+
+    // Members
+    std::string design_name_;
 
     int coreLx_;
     int coreLy_;
     int coreUx_;
     int coreUy_;
+    int num_terminals_;
 
     int64_t totalWL_;
 
