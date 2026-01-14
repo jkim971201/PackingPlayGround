@@ -23,6 +23,8 @@ int Macro::getCy() const { return ly_ + h_ / 2; }
 int Macro::getWidth() const { return w_; }
 int Macro::getHeight() const { return h_; }
 
+int Macro::getArea() const { return w_ * h_; }
+
 bool Macro::isTerminal() const { return is_terminal_; }
 
 std::string_view Macro::getName() const { return name_; }

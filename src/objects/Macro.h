@@ -24,6 +24,7 @@ class Macro
     int getCy() const; 
     int getWidth() const; 
     int getHeight() const; 
+    int getArea() const;
     bool isTerminal() const; 
     std::string_view getName() const; 
 

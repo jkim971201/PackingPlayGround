@@ -1,5 +1,9 @@
 #include <cstdio>
+#include <iostream>
 
+#include <Eigen/Dense>
+
+#include "SDPInstance.h"
 #include "SDPSolverCPU.h"
 #include "fusion.h"
 
@@ -36,19 +40,34 @@ Matrix::t eigen2fusion(const cuda_linalg::EigenSMatrix& mat)
 namespace sdp_solver
 {
 
-SDPSolverCPU::SDPSolverCPU(int n)
-  : n_         (n),
-    m_         (0),
-    p_         (0),
-    primal_obj_(0.0)
+SDPSolverCPU::SDPSolverCPU(std::shared_ptr<SDPInstance> sdp_inst)
 {
-  C_.resize(n_, n_);
+  m_ = 0;
+  p_ = 0;
+
+  int num_eq_constr = sdp_inst->eq_const_val.size();
+  int num_ineq_constr = sdp_inst->ineq_const_val.size();
+
+  setObjective(sdp_inst->obj_matrix);
+
+  auto& eq_const_matrix   = sdp_inst->eq_const_matrix;
+  auto& eq_const_val      = sdp_inst->eq_const_val;
+
+  auto& ineq_const_matrix = sdp_inst->ineq_const_matrix;
+  auto& ineq_const_val    = sdp_inst->ineq_const_val;
+
+  for(int i = 0; i < num_eq_constr; i++)
+    addEqualityConstraint(eq_const_matrix[i], eq_const_val[i]);
+
+  for(int i = 0; i < num_ineq_constr; i++)
+    addInequalityConstraint(ineq_const_matrix[i], ineq_const_val[i]);
 }
 
 void
 SDPSolverCPU::setObjective(EigenSMatrix& C)
 {
   C_ = C;
+  n_ = C_.rows();
 }
 
 void
@@ -73,7 +92,7 @@ SDPSolverCPU::addInequalityConstraint(EigenSMatrix& Gi, double hi)
   h_.emplace_back(hi);
 }
 
-void
+cuda_linalg::EigenDMatrix
 SDPSolverCPU::solve()
 {
   assert(A_.size() == m_);
@@ -96,10 +115,20 @@ SDPSolverCPU::solve()
   for(int i = 0; i < m_; i++)
   {
     auto equality_constraint_mosek = eigen2fusion(A_[i]);
-    std::string const_name = "Constraint" + std::to_string(i);
+    std::string const_name = "EqConstraint" + std::to_string(i);
     solver->constraint(const_name.c_str(), 
                        Expr::dot(equality_constraint_mosek, X), 
                        Domain::equalsTo(b_[i]));
+  }
+
+  // Inequality Constraints
+  for(int i = 0; i < p_; i++)
+  {
+    auto inequality_constraint_mosek = eigen2fusion(G_[i]);
+    std::string const_name = "IneqConstraint" + std::to_string(i);
+    solver->constraint(const_name.c_str(), 
+                       Expr::dot(inequality_constraint_mosek, X), 
+                       Domain::greaterThan(h_[i]));
   }
 
   solver->setSolverParam("numThreads", "16");
@@ -109,15 +138,22 @@ SDPSolverCPU::solve()
   primal_obj_ = solver->primalObjValue();
 
   // Solution (x vector)
-  auto sol = *(X->slice( nint( {0, 1} ), nint( {1, n_} ))->level());
+  auto sol_x = *(X->slice( nint( {0, 2} ), nint( {1, n_} ))->level());
+  auto sol_y = *(X->slice( nint( {1, 2} ), nint( {2, n_} ))->level());
 
-  solution_.resize(n_);
-  int idx = 0;
-  for(auto& val : sol)
-    solution_(idx++) = val;
+  cuda_linalg::EigenDMatrix dense_matrix(n_, n_);
+  for(int i = 0; i < n_; i++)
+  {
+    auto one_row = *(X->slice( nint( {i, 0} ), nint( {i + 1, n_} ))->level());
+    for(int j = 0; j < n_; j++)
+      dense_matrix(i, j) = one_row[j];
+  }
+
+  return dense_matrix;
+  // decompSVD(dense_matrix);
 }
 
-const EigenVector&
+std::vector<std::vector<double>>
 SDPSolverCPU::getResult() const
 {
   return solution_;
@@ -127,6 +163,28 @@ double
 SDPSolverCPU::getObjectiveValue() const
 {
   return primal_obj_;
+}
+
+void
+SDPSolverCPU::decompSVD(cuda_linalg::EigenDMatrix& matrix)
+{
+  constexpr int k_target_rank = 2;
+  int n = matrix.rows();
+  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(matrix);
+  // eigen value is sorted in the increasing order, so we select m from tail
+  Eigen::VectorXd eigenvalues  = es.eigenvalues().tail(k_target_rank).reverse();
+  Eigen::MatrixXd eigenvectors = es.eigenvectors().rightCols(k_target_rank).rowwise().reverse();
+  Eigen::MatrixXd R(k_target_rank, n);
+  for (int i = 0; i < k_target_rank; ++i) 
+    R.row(i) = std::sqrt(eigenvalues(i)) * eigenvectors.col(i).transpose();
+
+  solution_.resize(2, std::vector<double>(n_ - 2));
+
+  for(int i = 0; i < n - 2; i++)
+  {
+    solution_[0][i] = matrix(0, i + 2);
+    solution_[1][i] = matrix(1, i + 2);
+  }
 }
 
 }

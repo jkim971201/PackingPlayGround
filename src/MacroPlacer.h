@@ -50,6 +50,9 @@ class MacroPlacer
 
   private:
 
+    std::pair<double, double> originalToScaled(double x, double y) const;
+    std::pair<double, double> scaledToOriginal(double x, double y) const;
+
     // MacroPlacer.cpp
     void updateWL();
     void computeFixedInfo();
@@ -63,9 +66,13 @@ class MacroPlacer
             EigenVector&  Lmf_xf,
             EigenVector&  Lmf_yf);
 
-    EigenVector solveSDP(
+    void computeIneqConstraint(EigenVector& ineq_constraint);
+
+    std::vector<std::vector<double>> solveSDP(
       const EigenSMatrix& Lmm,
-      const EigenVector& Lmf_xf); // or Lmf_yf
+      const EigenVector&  Lmf_xf,
+      const EigenVector&  Lmf_yf,
+      const EigenVector&  ineq_constraint);
 
     // FileIO.cpp
     void readBlock(const std::filesystem::path& file);
@@ -113,6 +120,7 @@ class MacroPlacer
 
     EigenVector  Lmf_xf_; // Lmf * xf
     EigenVector  Lmf_yf_; // Lmf * yf
+    EigenVector  ineq_constraint_; // r_i^2 + r_j^2
 
     EigenSMatrix L_;      // Full Laplacian
     EigenSMatrix Lmm_;    // Laplacian between movable cells

@@ -3,6 +3,7 @@
 #include <sstream>
 #include <random>
 #include <ctime>
+#include <numbers>
 
 #include "Painter.h"
 #include "objects/Pin.h"
@@ -13,7 +14,7 @@ namespace macroplacer
 {
 
 Painter::Painter(QSize size, QColor color, int coreUx, int coreUy, int coreLx, int coreLy, int64_t wl)
-  : windowSize_ (            size),
+  : window_size_ (            size),
     coreLx_     (          coreLx),
     coreLy_     (          coreLy),
     coreDx_     ( coreUx - coreLx),
@@ -27,8 +28,8 @@ Painter::Painter(QSize size, QColor color, int coreUx, int coreUy, int coreLx, i
 void
 Painter::init()
 {
-  int window_w = windowSize_.width()  / 2;
-  int window_h = windowSize_.height() / 2;
+  int window_w = window_size_.width()  / 2;
+  int window_h = window_size_.height() / 2;
   window_length_ = std::min(window_w, window_h);
   offset_ = window_length_ * 0.05;
 
@@ -65,16 +66,45 @@ Painter::drawRect(QPainter* painter, QRectF& rect, QColor rectColor, QColor line
 }
 
 void
+Painter::drawCircle(QPainter* painter, const Macro* macro)
+{
+  QPen pen_for_circle;
+  pen_for_circle.setWidthF(3.5f);
+  pen_for_circle.setColor(Qt::black);
+  pen_for_circle.setJoinStyle(Qt::PenJoinStyle::BevelJoin);
+  pen_for_circle.setStyle(Qt::PenStyle::SolidLine);
+
+  QBrush brush_for_circle(Qt::gray, Qt::BrushStyle::Dense6Pattern);
+  painter->setBrush(brush_for_circle);
+  painter->setPen(pen_for_circle);
+
+  int macro_w = macro->getWidth();
+  int macro_h = macro->getHeight();
+  double rect_area = macro_w * macro_h;
+
+  constexpr double k_pi = std::numbers::pi;
+  double radius = std::sqrt(rect_area / k_pi);
+
+  double cx = macro->getCx() * scale_;
+  double cy = macro->getCy() * scale_;
+
+  painter->drawEllipse(QPointF(cx, cy), radius, radius);
+  //painter->drawRect( rect );
+  //painter->fillRect( rect , painter->brush() );
+}
+
+void
 Painter::setQRect(std::vector<Macro*>& macros)
 {
-  rectVector_.reserve(macros.size());
+  rect_vector_.reserve(macros.size());
   for(const auto& macro : macros)
   {
     float lx = macro->getLx() * scale_;
     float ly = macro->getLy() * scale_;
     float dx = macro->getWidth() * scale_;
     float dy = macro->getHeight() * scale_;
-    rectVector_.push_back(QRectF(lx, ly, dx, dy));
+    rect_vector_.push_back(QRectF(lx, ly, dx, dy));
+    macro_vector_.push_back(macro);
   }
 }
 
@@ -94,7 +124,7 @@ Painter::drawNet(QPainter* painter, const Net* net)
   int num_pin = pins.size();
   float com_x = 0;
   float com_y = 0;
-  for(auto pin : pins)
+  for(auto& pin : pins)
   {
     com_x += pin.getCx() / num_pin;
     com_y += pin.getCy() / num_pin;
@@ -132,13 +162,15 @@ Painter::paintEvent(QPaintEvent* event)
   painter.setBrush( QBrush(Qt::NoBrush) );
   painter.drawRect( core );
 
-  for(auto& rect : rectVector_)
-    drawRect( &painter, rect , Qt::gray, Qt::black);
-
   painter.setPen( QPen(Qt::darkGreen, 1) );
   for(auto& net : netVector_)
     drawNet( &painter, net );
 
+  for(auto macro : macro_vector_)
+    drawCircle( &painter, macro );
+
+  //for(auto& rect : rect_vector_)
+  //  drawRect( &painter, rect , Qt::gray, Qt::black);
 
   QFont font = painter.font();
   font.setBold(true);

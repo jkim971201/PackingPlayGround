@@ -26,7 +26,7 @@ class Painter : public QWidget
 
     // Setters
     void setQRect    (std::vector<Macro*>& macros);
-    void setNetlist  (std::vector<Net*>&     nets);
+    void setNetlist  (std::vector<Net*>& nets);
 
   protected:
 
@@ -37,12 +37,14 @@ class Painter : public QWidget
 
     void init();
 
-    QSize windowSize_;
-    std::vector<QRectF> rectVector_;
+    QSize window_size_;
+    std::vector<QRectF> rect_vector_;
     std::vector<const Net*> netVector_;
+    std::vector<const Macro*> macro_vector_;
 
     void drawRect(QPainter* painter, QRectF& rect, QColor rectColor = Qt::white, QColor rectLineColor = Qt::black);
     void drawNet (QPainter* painter, const Net* net);
+    void drawCircle(QPainter* painter, const Macro* macro);
 
     int coreLx_;
     int coreLy_;
