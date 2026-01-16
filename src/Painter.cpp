@@ -83,7 +83,7 @@ Painter::drawCircle(QPainter* painter, const Macro* macro)
   double rect_area = macro_w * macro_h;
 
   constexpr double k_pi = std::numbers::pi;
-  double radius = std::sqrt(rect_area / k_pi);
+  double radius = std::sqrt(rect_area / k_pi) * scale_;
 
   double cx = macro->getCx() * scale_;
   double cy = macro->getCy() * scale_;
@@ -91,6 +91,19 @@ Painter::drawCircle(QPainter* painter, const Macro* macro)
   painter->drawEllipse(QPointF(cx, cy), radius, radius);
   //painter->drawRect( rect );
   //painter->fillRect( rect , painter->brush() );
+
+  if(macro->isTerminal() == false)
+  {
+    QString name(macro->getName().data());
+    QPen pen = painter->pen();
+    QFont font = painter->font();
+    //const qreal text_font_size = radius * 0.5;
+    //font.setPointSizeF(text_font_size);
+    painter->setFont(font);
+    pen.setColor(Qt::white);
+    painter->setPen(pen);
+    painter->drawText(QPointF(cx, cy), name);
+  }
 }
 
 void

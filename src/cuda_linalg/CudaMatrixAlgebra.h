@@ -54,8 +54,14 @@ void computeSymMatrixMult(
   const CudaFlattenMatrix<double>& B,
         CudaFlattenMatrix<double>& C);
 
+/* C = alpha * A * A^T + beta * C */
+void symmetricRankKUpdate1(
+  const double alpha,
+  const CudaFlattenMatrix<double>& A,
+        CudaFlattenMatrix<double>& C);
+
 /* C = alpha * A * B^T + alpha * B * A^T + beta * C */
-void symmetricRank2KUpdate(
+void symmetricRankKUpdate2(
   const double alpha,
   const CudaFlattenMatrix<double>& A,
   const CudaFlattenMatrix<double>& B,

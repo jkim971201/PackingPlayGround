@@ -135,6 +135,10 @@ class SDPSolverGPU
 
     std::shared_ptr<LbfgsNode>  lbfgs_head_;
 
+    // This is only for MacroPlacement Problem
+    CudaVector<int>             d_eq_const_index_;
+    CudaVector<int>             d_ineq_const_index_;
+
     /* ---------- GPU Function ---------- */
     void solveALM();
     void initializeRho();
@@ -193,6 +197,14 @@ class SDPSolverGPU
       const CudaFlattenMatrix<double>& R,
       const CudaFlattenMatrix<double>& C,
             CudaFlattenMatrix<double>& Grad);
+
+    void computeWeightedMatrixSum(
+      const CudaVector<double>& weight,
+      CudaFlattenMatrix<double>& grad_workspace_matrix);
+
+    void computeWeightedMatrixSumCustomKernel(
+      const CudaVector<double>& weight,
+      CudaFlattenMatrix<double>& grad_workspace_matrix);
 
     int solveLbfgs(
       const double                     rho,

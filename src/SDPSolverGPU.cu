@@ -1,4 +1,5 @@
 #include <cassert>
+#include <unordered_map>
 #include <limits>
 #include <cusparse.h>
 #include <cublas_v2.h>
@@ -36,6 +37,48 @@ __global__ void slack_projection_kernel(
     }
     else
       assert(0);
+  }
+}
+
+__global__ void constraint_computation_kernel(
+  const int     num_row,
+  const int     num_eq_constraint,
+  const int     num_ineq_constraint,
+  const int*    eq_constraint_index,
+  const int*    ineq_constraint_index,
+  const double* weight,
+        double* output)
+{
+  const int num_constraint = num_eq_constraint + num_ineq_constraint;
+  const int constraint_id = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if(constraint_id < num_eq_constraint)
+  {
+    int eq_id = constraint_id;
+    int flatten_index = eq_constraint_index[eq_id];
+    double weight_val = weight[constraint_id] * 2.0;
+    atomicAdd(&(output[flatten_index]), weight_val);
+  }
+  else if(constraint_id >= num_eq_constraint && constraint_id < num_constraint)
+  {
+    int ineq_id = constraint_id - num_eq_constraint;
+    int flatten_index = ineq_constraint_index[ineq_id];
+    // id1 = row, id2 = col
+    int id1 = flatten_index % num_row;
+    int id2 = flatten_index / num_row;
+    assert(id1 < id2);
+    double weight_val = weight[constraint_id] * 2.0;
+
+    // column-major flatten -> row + num_row * col
+    int index1 = id1 + num_row * id1; // (id1, id1) -> +1
+    int index2 = id1 + num_row * id2; // (id1, id2) -> -1
+    int index3 = id2 + num_row * id1; // (id2, id1) -> -1
+    int index4 = id2 + num_row * id2; // (id2, id2) -> +1
+
+    atomicAdd(&(output[index1]), +weight_val);
+    atomicAdd(&(output[index2]), -weight_val);
+    atomicAdd(&(output[index3]), -weight_val);
+    atomicAdd(&(output[index4]), +weight_val);
   }
 }
 
@@ -80,7 +123,8 @@ void convertEigenToCudaFlattenMatrix(
       int row = it.row();
       int col = it.col();
       double val = static_cast<double>(it.value());
-      h_data[row * num_col + col] = val;
+      // NOTE: cuBLAS is Column-Major (IMPORTANT!!!)
+      h_data[row + col * num_col] = val;
     }
   }
 
@@ -128,6 +172,9 @@ SDPSolverGPU::makeSparseMatrixM()
   EigenSMatrix sparseM(m_ + p_, n_ * n_);
   EigenSMatrix sparseMT(n_ * n_, m_ + p_);
 
+  std::vector<int> eq_const_index;
+  std::vector<int> ineq_const_index;
+
   for(int i = 0; i < m_; i++)
   {
     const EigenSMatrix& A_eigen = A_[i];
@@ -140,7 +187,11 @@ SDPSolverGPU::makeSparseMatrixM()
         int col = it.col();
         double val = static_cast<double>(it.value());
 
-        sparseM.coeffRef(i, row * n_ + col) = val;
+        // cublas is column-major!!
+        sparseM.coeffRef(i, row + col * n_) = val;
+
+        // For compressed matrix
+        eq_const_index.push_back(row + col * n_);
       }
     }
   }
@@ -157,10 +208,27 @@ SDPSolverGPU::makeSparseMatrixM()
         int col = it.col();
         double val = static_cast<double>(it.value());
 
-        sparseM.coeffRef(i + m_, row * n_ + col) = val;
+        // cublas is column-major!!
+        sparseM.coeffRef(i + m_, row + col * n_) = val;
+
+        // For compressed matrix
+        if(row < col)
+          ineq_const_index.push_back(row + col * n_);
       }
     }
   }
+
+  assert(eq_const_index.size() == m_);
+  assert(ineq_const_index.size() == p_);
+
+  d_eq_const_index_.resize(m_);
+  d_ineq_const_index_.resize(p_);
+
+  thrust::copy(eq_const_index.begin(), eq_const_index.end(),
+               d_eq_const_index_.begin());
+
+  thrust::copy(ineq_const_index.begin(), ineq_const_index.end(),
+               d_ineq_const_index_.begin());
 
   sparseMT = sparseM.transpose();
 
@@ -253,7 +321,7 @@ SDPSolverGPU::loadDataOnGPU()
 
   // Step 10. M Matrix
   makeSparseMatrixM();
-
+  
   auto t_load2 = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> time_load_gpu  = t_load2 - t_load1;
   double time_load_gpu_double = time_load_gpu.count();
@@ -268,7 +336,7 @@ SDPSolverGPU::initializeRho()
   int num_constr = m_ + p_;
   double num_constr_double = static_cast<double>(num_constr);
   //rho_ = 500.0 / std::sqrt(num_constr_double);
-  rho_ = 1.0;
+  rho_ = 2.0;
 }
 
 void
@@ -278,7 +346,7 @@ SDPSolverGPU::findTargetRank()
   int optimal_rank 
     = static_cast<int>(std::sqrt(2 * num_constr) + 1.0);
   //target_rank_ = std::min(optimal_rank, n_);
-  target_rank_ = 2;
+  target_rank_ = 3;
 }
 
 void
@@ -287,7 +355,8 @@ SDPSolverGPU::computeUVT(
   const CudaFlattenMatrix<double>& V,
         CudaFlattenMatrix<double>& UVT) /* Output X = UV^T */
 {
-  symmetricRank2KUpdate(0.5, U, V, UVT);
+  symmetricRankKUpdate2(0.5, U, V, UVT);
+  //symmetricRankKUpdate1(1.0, U, UVT);
 }
 
 void
@@ -336,21 +405,51 @@ SDPSolverGPU::computeGradient(
   // workspace_vector = rho * Vector( Tr(ARRT) ) - rho * y + lambda
   vectorAxpy(+1.0, lambda, d_grad_workspace_vector_);
 
-  std::vector<double> h_weight(lambda.size());
-
-  thrust::copy(d_grad_workspace_vector_.begin(), 
-               d_grad_workspace_vector_.end(),
-               h_weight.begin());
-
   // workspace_matrix = 2C + 2 * sum(weight(i) * Ai)
-  for(int i = 0; i < d_A_.size(); i++)
-  {
-    const auto& Ai = d_A_[i];
-    fmatrixAxpy(2.0 * h_weight[i], Ai, d_grad_workspace_matrix_);
-  }
+  //computeWeightedMatrixSum(d_grad_workspace_vector_, d_grad_workspace_matrix_);
+  computeWeightedMatrixSumCustomKernel(d_grad_workspace_vector_, d_grad_workspace_matrix_);
 
   // Grad = workspace_matrix * R
   computeSymMatrixMult(1.0, d_grad_workspace_matrix_, R, Grad);
+}
+
+void
+SDPSolverGPU::computeWeightedMatrixSum(
+  const CudaVector<double>& weight,
+  CudaFlattenMatrix<double>& grad_workspace_matrix)
+{
+  const int num_dual = m_ + p_;
+
+  std::vector<double> h_weight(num_dual);
+  thrust::copy(weight.begin(), weight.end(),
+               h_weight.begin());
+
+  for(int i = 0; i < d_A_.size(); i++)
+  {
+    const auto& Ai = d_A_[i];
+    fmatrixAxpy(2.0 * h_weight[i], Ai, grad_workspace_matrix);
+  }
+}
+
+void
+SDPSolverGPU::computeWeightedMatrixSumCustomKernel(
+  const CudaVector<double>& weight,
+  CudaFlattenMatrix<double>& grad_workspace_matrix)
+{
+  const int num_row = n_;
+  const int num_dual = m_ + p_;
+  const int num_block = num_dual;
+  const int num_thread = 16;
+
+  constraint_computation_kernel<<<num_block, num_thread>>>(
+    num_row,                     /* num_row of constraint matrices */
+    m_,                          /* num_eq_constraint              */
+    p_,                          /* num_ineq_constraint            */
+    d_eq_const_index_.data(),    /* index of each equality constraint matrix   */
+    d_ineq_const_index_.data(),  /* index of each inequality constraint matrix */
+    weight.data(),               /* weight vector */
+    grad_workspace_matrix.getFlattenVector().data() /* output matrix */
+  );
 }
 
 void
@@ -675,7 +774,7 @@ SDPSolverGPU::updateSlack(
 {
   const int num_dual = num_eq_constraint + num_ineq_constraint;
   const int num_block = num_dual;
-  const int num_thread = 1;
+  const int num_thread = 16;
 
   slack_projection_kernel<<<num_block, num_thread>>>(
     num_dual,
@@ -797,9 +896,51 @@ SDPSolverGPU::solveALM()
     }
   }
 
+  //printDenseMatrixRowMajor(d_R_, "FinalR");
+  
   // Compute Final Solution : X = RR^T
   computeUVT(d_R_, d_R_, d_X_);
+
   //printDenseMatrixRowMajor(d_X_, "FinalX");
+
+//  std::vector<double> h_const(d_ARRT_.size());
+//  thrust::copy(d_ARRT_.begin(), d_ARRT_.end(), h_const.begin());
+//
+//  std::vector<double> h_b(d_b_.size());
+//  thrust::copy(d_b_.begin(), d_b_.end(), h_b.begin());
+//
+//  std::vector<double> h_y(d_y_.size());
+//  thrust::copy(d_y_.begin(), d_y_.end(), h_y.begin());
+//
+//  std::vector<double> h_R(d_R_.getFlattenVector().size());
+//  thrust::copy(d_R_.getFlattenVector().begin(), d_R_.getFlattenVector().end(), h_R.begin());
+//
+//  std::unordered_map<int, std::pair<int, int>> index_to_pair;
+//  int index = 0;
+//  for(int i = 0; i < n_ - 2; i++)
+//  {
+//    for(int j = i + 1; j < n_ - 2; j++)
+//      index_to_pair[index++] = {i, j};
+//  }
+//
+//  for(int i = 0; i < p_; i++)
+//  {
+//    printf("[%2d] ARRT: %f val: %f y: %f", i, h_const[i + m_], h_b[i + m_], h_y[i + m_]);
+//    if(h_const[i + m_] < h_b[i + m_])
+//    {
+//      auto [id1, id2] = index_to_pair[i];
+//      double x1 = h_R[id1 + 2];
+//      double y1 = h_R[id1 + 2 + n_];
+//
+//      double x2 = h_R[id2 + 2];
+//      double y2 = h_R[id2 + 2 + n_];
+//
+//      double dist = (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);
+//
+//      printf(" Violation! (%d - %d) Dist: %f", id1, id2, dist);
+//    }
+//    printf("\n");
+//  }
 }
 
 EigenDMatrix

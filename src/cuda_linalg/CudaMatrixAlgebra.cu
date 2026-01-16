@@ -14,17 +14,17 @@
 namespace cuda_linalg
 {
 
-__global__ void fillUpperOfLower(int n, double* d_matrix)
+__global__ void fillLowerPartwithUpperPart(int n, double* d_matrix)
 {
-	const int col = blockDim.x * blockIdx.x + threadIdx.x;
-	const int row = blockDim.y * blockIdx.y + threadIdx.y;
+	const int row = blockIdx.x;
+	const int col = blockIdx.y;
 
   if(row < n && col < n)
   {
-    if(col > row)
+    if(row > col) // lower
     {
-      int index1 = col + n * row;
-      int index2 = row + n * col; // index of the opposite
+      int index1 = row + n * col; // lower index
+      int index2 = col + n * row; // upper index (opposite)
       d_matrix[index1] = d_matrix[index2];
     }
   }
@@ -130,7 +130,7 @@ void computeEVD(const CudaFlattenMatrix<double>& d_A,
         uplo,                    /* uplo    : CUBLAS_FILL_MODE_LOWER or *_UPEER         */
         n,                       /* n       : Number of rows (or columns) of A          */
         d_dense_ptr,             /* A       : This will be filled with eigenvectors     */
-        n,                       /* lda     : Leading dimension of A, max(lda, n)       */
+        n,                       /* lda     : Leading dimension of A (num row?)         */
         d_eigen_values_ptr,      /* W       : EigenValues (array of size n)             */
         d_eigen_workspace_ptr,   /* work    : Workspace   (array of size lwork)         */
         lwork,                   /* Lwork   : Workspace Size (syevd_bufferSize returns) */
@@ -248,7 +248,52 @@ void computeSymMatrixMult(
       &beta,  C.getFlattenVector().data(), ldc) )
 }
 
-void symmetricRank2KUpdate(
+void symmetricRankKUpdate1(
+  const double alpha,
+  const CudaFlattenMatrix<double>& A,
+        CudaFlattenMatrix<double>& C)
+{
+  // C = alpha * A * A^T + beta * C
+  const double beta = 0.0;
+
+  const int num_row_A = A.getNumRow();
+  const int num_col_A = A.getNumCol();
+
+  const int num_row_C = C.getNumRow();
+  const int num_col_C = C.getNumCol();
+
+  assert(num_row_A == num_col_C);
+  assert(num_row_C == num_row_C);
+
+  const int lda = num_row_A;
+  const int ldc = num_row_C;
+  const int n   = num_row_A;
+  const int k   = num_col_A;
+
+  cublasFillMode_t  uplo   = CUBLAS_FILL_MODE_UPPER;
+  cublasOperation_t transa = CUBLAS_OP_N;
+
+  CHECK_CUBLAS(
+    cublasDsyrk(
+      A.getCuBlasHandle(),
+      uplo,
+      transa,
+      n,
+      k,
+      &alpha, A.getFlattenVector().data(), lda,
+      &beta,  C.getFlattenVector().data(), ldc) )
+
+  // At this moment, C is not filled fully.
+	dim3 grid_size(n,	n, 1);
+	dim3 block_size(1, 1);
+
+  //printDenseMatrixRowMajor(C, "C before fill");
+  fillLowerPartwithUpperPart<<<grid_size, block_size>>>(n, C.getFlattenVector().data());
+  //printDenseMatrixRowMajor(C, "C after  fill");
+}
+
+
+void symmetricRankKUpdate2(
   const double alpha,
   const CudaFlattenMatrix<double>& A,
   const CudaFlattenMatrix<double>& B,
@@ -291,11 +336,10 @@ void symmetricRank2KUpdate(
       &beta,  C.getFlattenVector().data(), ldc) )
 
   // At this moment, C is not filled fully.
-	int num_thread = 16;
-	dim3 grid_size((n + num_thread - 1) / num_thread, 
-			           (n + num_thread - 1) / num_thread, 1);
-	dim3 block_size(num_thread, num_thread, 1);
-  fillUpperOfLower<<<grid_size, block_size>>>(n, C.getFlattenVector().data());
+	dim3 grid_size(n,	n, 1);
+	dim3 block_size(1, 1);
+
+  fillLowerPartwithUpperPart<<<grid_size, block_size>>>(n, C.getFlattenVector().data());
 }
 
 void printDenseMatrixRowMajor(
@@ -313,10 +357,11 @@ void printDenseMatrixRowMajor(
                h_A_dense.begin());
 
   printf("Print Dense Matrix %s\n", title.c_str());
-  for(int i = 0; i < num_row; i++) 
+  // NOTE: cuBLAS is Column-Major (IMPORTANT!!!)
+  for(int i = 0; i < num_row; i++)
   {
     for(int j = 0; j < num_col; j++) 
-      printf("%10f ", h_A_dense[i * num_col + j]);
+      printf("%10f ", h_A_dense[i + j * num_row]);
     printf("\n");
   }
   printf("\n");

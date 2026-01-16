@@ -44,8 +44,8 @@ void checkCondition(const EigenSMatrix& matrix_sparse)
 
   //std::cout << "ObjMatrix" << std::endl;
   //std::cout << obj_matrix_dense << std::endl;
-  std::cout << "EigenValues" << std::endl;
-  std::cout << es.eigenvalues() << std::endl;
+  //std::cout << "EigenValues" << std::endl;
+  //std::cout << es.eigenvalues() << std::endl;
   printf("Condition number of Objective Matrix : %f\n", cond);
 }
 
@@ -138,16 +138,16 @@ MacroPlacer::MacroPlacer()
 std::pair<double, double>
 MacroPlacer::originalToScaled(double x, double y) const
 {
-  double scaled_x = (x - coreLx_) / (coreUx_ - coreLx_);
-  double scaled_y = (y - coreLy_) / (coreUy_ - coreLy_);
+  double scaled_x = (x - coreLx_) / (coreUx_ - coreLx_) * 0.5;
+  double scaled_y = (y - coreLy_) / (coreUy_ - coreLy_) * 0.5;
   return {scaled_x, scaled_y};
 }
 
 std::pair<double, double>
 MacroPlacer::scaledToOriginal(double x, double y) const
 {
-  double original_x = x * (coreUx_ - coreLx_) + coreLx_;
-  double original_y = y * (coreUy_ - coreLy_) + coreLy_;
+  double original_x = 2.0 * x * (coreUx_ - coreLx_) + coreLx_;
+  double original_y = 2.0 * y * (coreUy_ - coreLy_) + coreLy_;
   return {original_x, original_y};
 }
 
@@ -234,20 +234,22 @@ MacroPlacer::computeIneqConstraint(EigenVector& ineq_constraint)
 
   ineq_constraint.resize(num_overlap_pair);
 
+  const double scale = 1.0 / (coreUx_ - coreLx_) / (coreUy_ - coreLy_);
+
   int count = 0;
   for(int i = 0; i < num_movable; i++)
   {
-    double rect_area_i = movable_[i]->getArea();
-    rect_area_i /= (coreUx_ - coreLx_) * (coreUy_ - coreLy_);
+    double rect_area_i = static_cast<double>(movable_[i]->getArea()) * scale;
     double radius_i = std::sqrt(rect_area_i / k_pi);
     for(int j = i + 1; j < num_movable; j++)
     {
-      double rect_area_j = movable_[j]->getArea();
-      rect_area_j /= (coreUx_ - coreLx_) * (coreUy_ - coreLy_);
+      double rect_area_j = static_cast<double>(movable_[j]->getArea()) * scale;
       double radius_j = std::sqrt(rect_area_j / k_pi);
       double radius_sum = radius_i + radius_j;
-      ineq_constraint[count] = radius_sum * radius_sum;
+      double radius_sum_square = radius_sum * radius_sum;
+      ineq_constraint[count] = radius_sum_square;
       count++;
+      //printf("Constraint: %d - %d Value: %f\n", i, j, radius_sum_square);
     }
   }
 
