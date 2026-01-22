@@ -179,11 +179,11 @@ Painter::paintEvent(QPaintEvent* event)
   for(auto& net : netVector_)
     drawNet( &painter, net );
 
-  for(auto macro : macro_vector_)
-    drawCircle( &painter, macro );
+  //for(auto macro : macro_vector_)
+  //  drawCircle( &painter, macro );
 
-  //for(auto& rect : rect_vector_)
-  //  drawRect( &painter, rect , Qt::gray, Qt::black);
+  for(auto& rect : rect_vector_)
+    drawRect( &painter, rect , Qt::gray, Qt::black);
 
   QFont font = painter.font();
   font.setBold(true);

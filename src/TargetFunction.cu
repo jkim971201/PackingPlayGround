@@ -153,14 +153,14 @@ __global__ void computePinGrad(
     float pull_value = weight_this_net * 1.0f;
 
     if(is_max_pin_x[pin_id] == 1)
-      pin_grad_x[pin_id] = +pull_value;
-    else if(is_min_pin_x[pin_id] == 1)
       pin_grad_x[pin_id] = -pull_value;
+    else if(is_min_pin_x[pin_id] == 1)
+      pin_grad_x[pin_id] = +pull_value;
 
     if(is_max_pin_y[pin_id] == 1)
-      pin_grad_y[pin_id] = +pull_value;
-    else if(is_min_pin_y[pin_id] == 1)
       pin_grad_y[pin_id] = -pull_value;
+    else if(is_min_pin_y[pin_id] == 1)
+      pin_grad_y[pin_id] = +pull_value;
   }
 }
 
@@ -300,7 +300,7 @@ TargetFunction::TargetFunction(
   num_macro_ = macros.size();
   num_pair_  = num_macro_ * (num_macro_ - 1) / 2;
 
-  lambda_    = 1.0f;
+  lambda_    = 4.0f;
 
   h_macro_cx_.resize(num_macro_);
   h_macro_cy_.resize(num_macro_);
@@ -452,8 +452,11 @@ TargetFunction::updateParameters()
 void
 TargetFunction::printProgress(int iter) const
 {
-  printf("Iter: %4d HPWL: %8f SumOverlap: %8f\n", 
-    iter, hpwl_, sum_overlap_area_);
+  if(iter == 0 || iter % 50 == 0)
+  {
+    printf("Iter: %4d HPWL: %8f SumOverlap: %8f\n", 
+      iter, hpwl_, sum_overlap_area_);
+  }
 }
 
 void 
