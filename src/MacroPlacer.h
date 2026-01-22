@@ -110,7 +110,7 @@ class MacroPlacer
     std::vector<Macro*> movable_;
     std::vector<Macro*> fixed_;
 
-    std::unique_ptr<Painter> painter_;
+    std::shared_ptr<Painter> painter_;
 
     std::unordered_map<std::string, Macro*> name_to_macro_ptr_;
 

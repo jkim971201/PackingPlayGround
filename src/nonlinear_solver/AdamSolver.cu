@@ -53,26 +53,19 @@ __global__ void updateDirectionKernelAdam(
   }
 }
 
-AdamSolver::AdamSolver() : alpha_(100.0), beta1_(0.9), beta2_(0.999) {}
-
-AdamSolver::AdamSolver(
-  std::shared_ptr<HyperParam> param, 
-  std::shared_ptr<TargetFunction> gp_problem)
-  : SolverBase(param, gp_problem)
+AdamSolver::AdamSolver(std::shared_ptr<TargetFunction> problem)
+  : SolverBase(problem)
 {
-  alpha_  = param->adam_alpha;
-  beta1_  = param->adam_beta1;
-  beta2_  = param->adam_beta2;
+  alpha_  = 1e-1; // learning_rate
+  beta1_  = 0.9;
+  beta2_  = 0.999;
   beta1k_ = beta1_;
   beta2k_ = beta2_;
-  type_   = SolverType::ADAM;
 }
 
 void
 AdamSolver::initSolver()
 {
-  param_->printHyperParameters();
-
   initForCUDAKernel();
 
   target_function_->getInitialGrad(
@@ -172,8 +165,6 @@ AdamSolver::updateDirection(
 void
 AdamSolver::solve()
 {
-  target_function_->importFromDb();
-
   initSolver();
 
   printf("Adam Solve Start\n");
@@ -182,15 +173,17 @@ AdamSolver::solve()
   auto solve_start_chrono = getChronoNow();
 
   int iter = 0;
-  for(; iter < param_->maxOptIter; iter++)
+  int max_opt_iter = 1000;
+  for(; iter < max_opt_iter; iter++)
   {
+    target_function_->iterBgnCbk(iter);
+
     // Step #1: Compute next gradient
     target_function_->updatePointAndGetGrad(
       d_curX_,
       d_curY_,
       d_curGradX_,
-      d_curGradY_,
-      false);
+      d_curGradY_);
 
     // Step #2: Update moment
     updateMoment(d_curMX_,

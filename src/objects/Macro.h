@@ -38,6 +38,8 @@ class Macro
     // Setters
     void setLx(int lx);
     void setLy(int ly);
+    void setCx(int cx);
+    void setCy(int cy);
     void addPin(Pin* pin);
     void move(int dx, int dy);
 

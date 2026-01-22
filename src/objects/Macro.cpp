@@ -53,6 +53,22 @@ Macro::move(int dx, int dy)
 }
 
 void
+Macro::setCx(int new_cx)
+{
+  lx_ = new_cx - w_ / 2;
+  for(auto& pin : pins_)
+    pin->setCx(new_cx);
+}
+
+void
+Macro::setCy(int new_cy)
+{
+  ly_ = new_cy - h_ / 2;
+  for(auto& pin : pins_)
+    pin->setCy(new_cy);
+}
+
+void
 Macro::setLx(int newLx)
 {
   int dx = newLx - lx_;
@@ -69,5 +85,6 @@ Macro::setLy(int newLy)
   for(auto& pin : pins_)
     pin->setCy(pin->getCy() + dy);
 }
+
 
 }

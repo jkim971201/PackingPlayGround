@@ -335,8 +335,8 @@ SDPSolverGPU::initializeRho()
 {
   int num_constr = m_ + p_;
   double num_constr_double = static_cast<double>(num_constr);
-  //rho_ = 1.0 / std::sqrt(num_constr_double);
-  rho_ = 1.0;
+  rho_ = 1.0 / std::sqrt(num_constr_double);
+  // rho_ = 1.0;
 }
 
 void

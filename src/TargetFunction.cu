@@ -1,5 +1,6 @@
 #include "cuda_linalg/CudaVectorAlgebra.h"
 #include "TargetFunction.h"
+#include "Painter.h"
 
 #include "objects/Macro.h"
 #include "objects/Pin.h"
@@ -7,6 +8,53 @@
 
 namespace macroplacer
 {
+
+__device__ inline float getXInsideChip(
+  const float cell_cx, 
+  const float cell_width, 
+  const float x_min,
+  const float x_max)
+{
+  float new_cx = cell_cx;
+  if(cell_cx - cell_width / 2 < x_min)
+    new_cx = x_min + cell_width / 2;
+  if(cell_cx + cell_width / 2 > x_max)
+    new_cx = x_max - cell_width / 2;
+  return new_cx;
+}
+
+__device__ inline float getYInsideChip(
+  const float cell_cy, 
+  const float cell_height, 
+  const float y_min,  
+  const float y_max)
+{
+  float new_cy = cell_cy;
+  if(cell_cy - cell_height / 2 < y_min)
+    new_cy = y_min + cell_height / 2;
+  if(cell_cy + cell_height / 2 > y_max)
+    new_cy = y_max - cell_height / 2;
+  return new_cy;
+}
+
+__global__ void clipToChipBoundaryKernel(
+  const int    num_cell,
+  const float  x_min,
+  const float  y_min,
+  const float  x_max,
+  const float  y_max,
+  const float* cell_width,
+  const float* cell_height,
+        float* cell_cx,
+        float* cell_cy)
+{
+  const int cell_id = blockIdx.x * blockDim.x + threadIdx.x;
+  if(cell_id < num_cell)
+  {
+    cell_cx[cell_id] = getXInsideChip(cell_cx[cell_id], cell_width[cell_id], x_min, x_max);
+    cell_cy[cell_id] = getYInsideChip(cell_cy[cell_id], cell_height[cell_id], y_min, y_max);
+  }
+}
 
 __global__ void updatePinCoordinateKernel(
   const int    num_pin, 
@@ -63,21 +111,26 @@ __global__ void identifyMinMax(
       {
         float x_othter_pin = pin_x[pin_id2];
         float y_othter_pin = pin_y[pin_id2];
-        if(x_othter_pin > x_this_pin)
+        if(x_othter_pin >= x_this_pin)
           is_max_x = 0;
-        if(x_othter_pin < x_this_pin)
+        if(x_othter_pin <= x_this_pin)
           is_min_x = 0;
-        if(y_othter_pin > y_this_pin)
+        if(y_othter_pin >= y_this_pin)
           is_max_y = 0;
-        if(y_othter_pin < y_this_pin)
+        if(y_othter_pin <= y_this_pin)
           is_min_y = 0;
       }
     }
 
     is_max_x_arr[pin_id1] = is_max_x;
     is_min_x_arr[pin_id1] = is_min_x;
+
+    assert(is_max_x + is_min_x <= 1);
+
     is_max_y_arr[pin_id1] = is_max_y;
     is_min_y_arr[pin_id1] = is_min_y;
+
+    assert(is_max_y + is_min_y <= 1);
   }
 }
 
@@ -133,21 +186,132 @@ __global__ void addPinGrad(
   }
 }
 
+__global__ void computeNetBBoxKernel(
+  const int    num_net,
+  const int*   net_start,
+  const float* pin_x,
+  const float* pin_y,
+        float* net_bbox_width,
+        float* net_bbox_height)
+{
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if(i < num_net)
+  {
+    float max_pin_x = 0;
+    float max_pin_y = 0;
+    float min_pin_x = k_float_max;
+    float min_pin_y = k_float_max;
+
+    for(int j = net_start[i]; j < net_start[i+1]; j++)
+    {
+      max_pin_x = max(pin_x[j], max_pin_x);
+      min_pin_x = min(pin_x[j], min_pin_x);
+      max_pin_y = max(pin_y[j], max_pin_y);
+      min_pin_y = min(pin_y[j], min_pin_y);
+    }
+ 
+    net_bbox_width[i] = max_pin_x - min_pin_x;
+    net_bbox_height[i] = max_pin_y - min_pin_y;
+  }
+}
+
+__global__ void computeOverlapSubGradKernel(
+  const int    num_pair,
+  const int    num_macro,
+  const int*   pair_list,
+  const float* macro_cx,
+  const float* macro_cy,
+  const float* macro_width,
+  const float* macro_height,
+        float* overlap_area,
+        float* overlap_grad_x,
+        float* overlap_grad_y)
+{
+  const int pair_id = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if(pair_id < num_pair)
+  {
+    int pair = pair_list[pair_id];
+    int macro_id1 = pair % num_macro;
+    int macro_id2 = pair / num_macro;
+    assert(macro_id1 < macro_id2);
+    
+    float cx1 = macro_cx[macro_id1];
+    float cy1 = macro_cy[macro_id1];
+    float cx2 = macro_cx[macro_id2];
+    float cy2 = macro_cy[macro_id2];
+
+    float width1  = macro_width[macro_id1];
+    float width2  = macro_width[macro_id2];
+    float height1 = macro_height[macro_id1];
+    float height2 = macro_height[macro_id2];
+
+    float x_min1 = cx1 - width1  / 2.0;
+    float x_max1 = cx1 + width1  / 2.0;
+    float y_min1 = cy1 - height1 / 2.0;
+    float y_max1 = cy1 + height1 / 2.0;
+
+    float x_min2 = cx2 - width2  / 2.0;
+    float x_max2 = cx2 + width2  / 2.0;
+    float y_min2 = cy2 - height2 / 2.0;
+    float y_max2 = cy2 + height2 / 2.0;
+
+    float overlap_length_x = 
+      max(0.0f, min(x_max1, x_max2) - max(x_min1, x_min2));
+
+    float overlap_length_y = 
+      max(0.0f, min(y_max1, y_max2) - max(y_min1, y_min2));
+
+    float overlap_rect_area = overlap_length_x * overlap_length_y;
+    overlap_area[pair_id] = overlap_rect_area;
+
+    if(overlap_rect_area > 0.0f)
+    {
+      float x_sign1 = cx1 < cx2 ? -1.0f : +1.0f;
+      float x_sign2 = -x_sign1;
+
+      float y_sign1 = cy1 < cy2 ? -1.0f : +1.0f;
+      float y_sign2 = -y_sign1;
+
+      atomicAdd(&(overlap_grad_x[macro_id1]), x_sign1 * overlap_length_x);
+      atomicAdd(&(overlap_grad_x[macro_id2]), x_sign2 * overlap_length_x);
+
+      atomicAdd(&(overlap_grad_y[macro_id1]), y_sign1 * overlap_length_y);
+      atomicAdd(&(overlap_grad_y[macro_id2]), y_sign2 * overlap_length_y);
+    }
+  }
+}
+
 TargetFunction::TargetFunction(
+  float x_min, float y_min, float x_max, float y_max,
+  std::shared_ptr<Painter> painter,
   std::vector<Macro*>& macros,
   std::vector<Net*>& nets,
   std::vector<Pin*>& pins)
 {
+  painter_   = painter;
+  x_min_     = x_min;
+  y_min_     = y_min;
+  x_max_     = x_max;
+  y_max_     = y_max;
   num_net_   = nets.size();
   num_pin_   = pins.size();
   num_macro_ = macros.size();
+  num_pair_  = num_macro_ * (num_macro_ - 1) / 2;
 
+  lambda_    = 1.0f;
+
+  h_macro_cx_.resize(num_macro_);
+  h_macro_cy_.resize(num_macro_);
   // We don't want to store these data permanently
   std::vector<int> h_pin2net(num_pin_);
   std::vector<int> h_pin2macro(num_pin_, -1);
   std::vector<int> h_net_start(num_net_+ 1);
   std::vector<float> h_macro_width(num_macro_);
   std::vector<float> h_macro_height(num_macro_);
+  std::vector<int> h_index_pair;
+  h_index_pair.reserve(num_pair_);
 
   for(auto net_ptr : nets)
   {
@@ -160,13 +324,20 @@ TargetFunction::TargetFunction(
 
   h_net_start[num_net_] = num_pin_;
 
+  macro_ptrs_.reserve(num_macro_);
   for(int macro_id = 0; macro_id < num_macro_; macro_id++)
   {
     auto macro_ptr = macros[macro_id];
+    macro_ptrs_.push_back(macro_ptr);
+    h_macro_cx_[macro_id] = macro_ptr->getCx();
+    h_macro_cy_[macro_id] = macro_ptr->getCy();
     h_macro_width[macro_id] = macro_ptr->getWidth();
     h_macro_height[macro_id] = macro_ptr->getHeight();
     for(auto& pin : macro_ptr->getPins())
       h_pin2macro[pin->id()] = macro_id;
+
+    for(int macro_id2 = macro_id + 1; macro_id2 < num_macro_; macro_id2++)
+      h_index_pair.push_back(macro_id + macro_id2 * num_macro_);
   }
 
   // Initialize CUDA Kernel
@@ -175,6 +346,9 @@ TargetFunction::TargetFunction(
   d_is_min_pin_x_.resize(num_pin_);
   d_is_max_pin_y_.resize(num_pin_);
   d_is_min_pin_y_.resize(num_pin_);
+
+  d_net_bbox_width_.resize(num_net_);
+  d_net_bbox_height_.resize(num_net_);
 
   d_pin_x_.resize(num_pin_);
   d_pin_y_.resize(num_pin_);
@@ -188,24 +362,31 @@ TargetFunction::TargetFunction(
   d_pin_grad_x_.resize(num_pin_);
   d_pin_grad_y_.resize(num_pin_);
 
-  d_wl_grad_x_.resize(num_pin_);
-  d_wl_grad_y_.resize(num_pin_);
+  d_wl_grad_x_.resize(num_macro_);
+  d_wl_grad_y_.resize(num_macro_);
 
   d_pin2net_.resize(num_pin_);
   d_pin2macro_.resize(num_pin_);
   d_net_start_.resize(num_net_ + 1);
   d_net_weight_.resize(num_net_);
   
-  thrust::copy(h_pin2net.begin(),   h_pin2net.end(),   d_pin2net_.begin());
-  thrust::copy(h_pin2macro.begin(), h_pin2macro.end(), d_pin2macro_.begin());
-  thrust::copy(h_net_start.begin(), h_net_start.end(), d_net_start_.begin());
+  d_pin2net_   = h_pin2net;
+  d_pin2macro_ = h_pin2macro;
+  d_net_start_ = h_net_start;
 
   // overlap
   d_macro_width_.resize(num_macro_);
   d_macro_height_.resize(num_macro_);
+  d_index_pair_.resize(num_pair_);
 
-  thrust::copy(h_macro_width.begin(), h_macro_width.end(), d_macro_width_.begin());
-  thrust::copy(h_macro_height.begin(), h_macro_height.end(), d_macro_height_.begin());
+  d_overlap_area_.resize(num_pair_);
+
+  d_overlap_grad_x_.resize(num_macro_);
+  d_overlap_grad_y_.resize(num_macro_);
+
+  d_macro_width_  = h_macro_width;
+  d_macro_height_ = h_macro_height;
+  d_index_pair_   = h_index_pair;
 }
 
 void
@@ -220,6 +401,101 @@ TargetFunction::updatePointAndGetGrad(
 
   // For Density SubGrad
   computeOverlapSubGrad(cur_x, cur_y, grad_x, grad_y);
+
+  vectorAdd(1.0f, lambda_, d_wl_grad_x_, d_overlap_grad_x_, grad_x);
+  vectorAdd(1.0f, lambda_, d_wl_grad_y_, d_overlap_grad_y_, grad_y);
+}
+
+void 
+TargetFunction::getInitialGrad(
+  const CudaVector<float>& initial_x,
+  const CudaVector<float>& initial_y,
+        CudaVector<float>& initial_grad_x,
+        CudaVector<float>& initial_grad_y)
+{
+  computeWirelengthSubGrad(
+    initial_x, initial_y, d_wl_grad_x_, d_wl_grad_y_);
+
+  computeOverlapSubGrad(initial_x, initial_y, d_overlap_grad_x_, d_overlap_grad_y_);
+
+  vectorAdd(1.0f, lambda_, d_wl_grad_x_, d_overlap_grad_x_, initial_grad_x);
+  vectorAdd(1.0f, lambda_, d_wl_grad_y_, d_overlap_grad_y_, initial_grad_y);
+}
+
+void 
+TargetFunction::clipToChipBoundary(
+  CudaVector<float>& cell_cx,
+  CudaVector<float>& cell_cy)
+{
+  int num_thread = 64;
+  int num_block_cell = (num_macro_ - 1 + num_thread) / num_thread;
+
+  clipToChipBoundaryKernel<<<num_block_cell, num_thread>>>(
+    num_macro_,
+    x_min_,
+    y_min_,
+    x_max_,
+    y_max_,
+    d_macro_width_.data(),
+    d_macro_height_.data(),
+    cell_cx.data(),
+    cell_cy.data());
+}
+
+void 
+TargetFunction::updateParameters()
+{
+  hpwl_ = computeHpwl();
+  sum_overlap_area_ = computeVectorSum(d_overlap_area_);
+}
+
+void
+TargetFunction::printProgress(int iter) const
+{
+  printf("Iter: %4d HPWL: %8f SumOverlap: %8f\n", 
+    iter, hpwl_, sum_overlap_area_);
+}
+
+void 
+TargetFunction::solveBgnCbk()
+{
+}
+
+void 
+TargetFunction::solveEndCbk(
+  int iter, double runtime,
+  const CudaVector<float>& macro_cx, 
+  const CudaVector<float>& macro_cy)
+{
+  exportToDb(macro_cx, macro_cy);
+}
+
+void 
+TargetFunction::iterBgnCbk(int iter)
+{
+  updateParameters();
+  printProgress(iter);
+}
+
+void 
+TargetFunction::iterEndCbk(
+  int iter, double runtime,
+  const CudaVector<float>& macro_cx, 
+  const CudaVector<float>& macro_cy)
+{
+
+}
+
+bool 
+TargetFunction::checkConvergence() const
+{
+  return false;
+}
+
+int 
+TargetFunction::getNumVariable() const
+{
+  return num_macro_;
 }
 
 void
@@ -285,10 +561,74 @@ void
 TargetFunction::computeOverlapSubGrad(
   const CudaVector<float>& cur_x,
   const CudaVector<float>& cur_y,
-        CudaVector<float>& grad_x,
-        CudaVector<float>& grad_y)
+        CudaVector<float>& overlap_grad_x,
+        CudaVector<float>& overlap_grad_y)
 {
+  int num_thread = 64;
+  int num_block_pair = (num_pair_ - 1 + num_thread) / num_thread;
 
+  d_overlap_area_.fillZero();
+  overlap_grad_x.fillZero();
+  overlap_grad_y.fillZero();
+
+  computeOverlapSubGradKernel<<<num_block_pair, num_thread>>>(
+    num_pair_,
+    num_macro_,
+    d_index_pair_.data(),
+    cur_x.data(),
+    cur_y.data(),
+    d_macro_width_.data(),
+    d_macro_height_.data(),
+    d_overlap_area_.data(),
+    overlap_grad_x.data(),
+    overlap_grad_y.data());
+}
+
+float
+TargetFunction::computeHpwl()
+{
+  d_net_bbox_width_.fillZero();
+  d_net_bbox_height_.fillZero();
+
+  int num_thread = 64;
+  int num_block_net = (num_net_ - 1 + num_thread) / num_thread;
+
+  computeNetBBoxKernel<<<num_block_net, num_thread>>>(
+    num_net_,
+    d_net_start_.data(),
+    d_pin_x_.data(),
+    d_pin_y_.data(),
+    d_net_bbox_width_.data(),
+    d_net_bbox_height_.data());
+
+  float hpwl_x = computeVectorSum(d_net_bbox_width_);
+  float hpwl_y = computeVectorSum(d_net_bbox_height_);
+  return hpwl_x + hpwl_y;
+}
+
+void
+TargetFunction::exportToSolver(
+  CudaVector<float>& cell_cx,
+  CudaVector<float>& cell_cy)
+{
+  // Host to Device
+  cell_cx = h_macro_cx_;
+  cell_cy = h_macro_cy_;
+}
+
+void
+TargetFunction::exportToDb(
+  const CudaVector<float>& macro_cx,
+  const CudaVector<float>& macro_cy)
+{
+  thrust::copy(macro_cx.begin(), macro_cx.end(), h_macro_cx_.begin());
+  thrust::copy(macro_cy.begin(), macro_cy.end(), h_macro_cy_.begin());
+
+  for(int macro_id = 0; macro_id < num_macro_; macro_id++)
+  {
+    macro_ptrs_[macro_id]->setCx(h_macro_cx_[macro_id]);
+    macro_ptrs_[macro_id]->setCy(h_macro_cy_[macro_id]);
+  }
 }
 
 }; // namespace macroplacer

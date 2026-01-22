@@ -20,16 +20,23 @@ set(SRC
   src/MacroPlacer.cpp
 	src/Painter.cpp
   src/Util.cpp
+  src/Refine.cpp
   src/SDPSolverCPU.cpp
-  src/SDPSolverGPU.cu
   src/objects/Pin.cpp
   src/objects/Net.cpp
   src/objects/Macro.cpp
 )
 
-set_source_files_properties(src/SDPSolverGPU.cu PROPERTIES LANGUAGE CUDA)
+set(CUDA_SRC 
+  src/SDPSolverGPU.cu
+  src/TargetFunction.cu
+  src/nonlinear_solver/AdamSolver.cu
+  src/nonlinear_solver/SolverBase.cu
+)
 
-add_executable(${PROJECT_NAME} ${SRC})
+set_source_files_properties(CUDA_SRC PROPERTIES LANGUAGE CUDA)
+
+add_executable(${PROJECT_NAME} ${SRC} ${CUDA_SRC})
 
 target_include_directories(${PROJECT_NAME}
   PUBLIC
@@ -50,7 +57,7 @@ target_link_libraries(${PROJECT_NAME}
   CUDA::cusparse
   CUDA::cufft
   CUDA::cusolver
-  CudaLinAlg
+  cuda_linalg  
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES CUDA_ARCHITECTURES "75")

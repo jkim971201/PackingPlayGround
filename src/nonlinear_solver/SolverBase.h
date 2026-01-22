@@ -4,7 +4,6 @@
 #include <memory>
 
 #include "cuda_linalg/CudaVector.h"
-#include "HyperParam.h"
 
 namespace macroplacer
 {
@@ -18,11 +17,7 @@ class SolverBase
   public:
 
     SolverBase();
-    SolverBase(
-      std::shared_ptr<HyperParam> param, 
-      std::shared_ptr<TargetFunction> gp_problem);
-
-    SolverType getSolverType() const;
+    SolverBase(std::shared_ptr<TargetFunction> problem);
 
     // Pure virtual function
     virtual void solve() = 0;
@@ -39,9 +34,6 @@ class SolverBase
 
     int num_var_;
 
-    SolverType type_;
-
-		std::shared_ptr<HyperParam>     param_;
     std::shared_ptr<TargetFunction> target_function_;
 
     /* Device Array */

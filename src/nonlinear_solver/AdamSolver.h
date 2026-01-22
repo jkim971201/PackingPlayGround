@@ -10,10 +10,7 @@ class AdamSolver : public SolverBase
 {
   public:
 
-    AdamSolver();
-    AdamSolver(
-      std::shared_ptr<HyperParam> param, 
-      std::shared_ptr<TargetFunction> gp_problem);
+    AdamSolver(std::shared_ptr<TargetFunction> problem);
 
     // Main Loop
     void solve() override;

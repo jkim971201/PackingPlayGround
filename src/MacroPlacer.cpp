@@ -418,7 +418,7 @@ MacroPlacer::show(int& argc, char* argv[])
 {
   QApplication app(argc, argv);
   QSize size = app.screens()[0]->size();
-  painter_ = std::make_unique<Painter>(size, Qt::darkGray, coreUx_, coreUy_, coreLx_, coreLy_, totalWL_);
+  painter_ = std::make_shared<Painter>(size, Qt::darkGray, coreUx_, coreUy_, coreLx_, coreLy_, totalWL_);
   painter_->setQRect( macro_ptrs_ );
   painter_->setNetlist( net_ptrs_ );
   painter_->show();
