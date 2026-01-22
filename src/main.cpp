@@ -22,7 +22,7 @@ int main(int argc, char **argv)
 
   mpl.run();
 
-  // mpl.show(argc, argv);
+  mpl.show(argc, argv);
 
   return 0;
 }

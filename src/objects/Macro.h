@@ -28,6 +28,8 @@ class Macro
     bool isTerminal() const; 
     std::string_view getName() const; 
 
+    std::vector<Pin*>& getPins();
+
     // NOTE
     // If you want to change the coordinates of macro location, 
     // then you also have to change the coordinates of its pins.

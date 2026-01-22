@@ -28,8 +28,8 @@ Painter::Painter(QSize size, QColor color, int coreUx, int coreUy, int coreLx, i
 void
 Painter::init()
 {
-  int window_w = window_size_.width()  / 2;
-  int window_h = window_size_.height() / 2;
+  int window_w = window_size_.width()  * 3 / 5;
+  int window_h = window_size_.height() * 3 / 5;
   window_length_ = std::min(window_w, window_h);
   offset_ = window_length_ * 0.05;
 

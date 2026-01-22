@@ -6,10 +6,16 @@ namespace macroplacer
 {
 
 Pin::Pin(Macro* macro, Net* net)
-  : macro_(macro), net_(net)
+  : macro_(macro), net_(net), id_(-1)
 {
   cx_ = macro->getCx();
   cy_ = macro->getCy();
+}
+
+int
+Pin::id() const
+{ 
+  return id_;
 }
 
 Net*
@@ -52,6 +58,12 @@ int
 Pin::getCy() const 
 { 
   return cy_; 
+}
+
+void
+Pin::setID(int id)
+{
+  id_ = id;
 }
 
 void 

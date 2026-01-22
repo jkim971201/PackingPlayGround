@@ -197,6 +197,9 @@ MacroPlacer::run()
     movable_id++;
   }
 
+  refineMacroPlace();
+  printf("Refine          finished\n");
+
   updateWL();
 
   printf("TotalWL : %ld\n", totalWL_);
@@ -376,21 +379,21 @@ MacroPlacer::solveSDP(
 {
   int num_movable = movable_.size();
 
+  std::vector<std::vector<double>> x_and_y;
+  x_and_y.resize(2, std::vector<double>(num_movable));
+
   auto sdp_inst 
     = makeSDPInstance(num_movable, Lmm, Lmf_xf, Lmf_yf, ineq_constraint);
 
-  sdp_solver::SDPSolverCPU solver(sdp_inst);
-  EigenDMatrix solution = solver.solve();
-
-  std::vector<std::vector<double>> x_and_y;
-  x_and_y.resize(2, std::vector<double>(num_movable));
-  for(int i = 0; i < solution.rows() - 2; i++)
-  {
-    x_and_y[0][i] = solution(0, i + 2);
-    x_and_y[1][i] = solution(1, i + 2);
-  }
-
-  printf("ObjVal : %f\n", solver.getObjectiveValue());
+//  sdp_solver::SDPSolverCPU solver(sdp_inst);
+//  EigenDMatrix solution = solver.solve();
+//  for(int i = 0; i < solution.rows() - 2; i++)
+//  {
+//    x_and_y[0][i] = solution(0, i + 2);
+//    x_and_y[1][i] = solution(1, i + 2);
+//  }
+//
+//  printf("ObjVal : %f\n", solver.getObjectiveValue());
 
   checkCondition(sdp_inst->obj_matrix);
 

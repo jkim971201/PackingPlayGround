@@ -50,10 +50,13 @@ class MacroPlacer
 
   private:
 
+    // Refine.cpp
+    void refineMacroPlace();
+
+    // MacroPlacer.cpp
     std::pair<double, double> originalToScaled(double x, double y) const;
     std::pair<double, double> scaledToOriginal(double x, double y) const;
 
-    // MacroPlacer.cpp
     void updateWL();
     void computeFixedInfo();
     void createClusterLaplacian(EigenSMatrix& L);

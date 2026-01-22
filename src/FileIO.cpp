@@ -272,11 +272,22 @@ MacroPlacer::readNet(const std::filesystem::path& net_file)
   assert(num_nets == net_insts_.size());
   assert(num_pins == num_pins_read);
 
+  // NOTE: This order MUST be kept
+  // net0 pin0
+  //      pin1
+  //      pin2
+  // net1 pin3
+  //      pin4
+  //      pin5
+  //      pin6
+  //      ...
+  int pin_id = 0;
   for(auto& net_inst : net_insts_)
   {
     net_ptrs_.push_back(&net_inst);
     for(auto& pin : net_inst.getPins())
     {
+      pin.setID(pin_id++);
       pin_ptrs_.push_back(&pin);
       Macro* macro = pin.getMacro();
       macro->addPin(&pin);

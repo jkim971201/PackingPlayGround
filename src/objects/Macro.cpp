@@ -4,7 +4,13 @@
 namespace macroplacer
 {
 
-Macro::Macro(const std::string& name, int lx, int ly, int w, int h, bool is_terminal)
+Macro::Macro(
+  const std::string& name, 
+  int lx, 
+  int ly, 
+  int w, 
+  int h, 
+  bool is_terminal)
   : lx_(lx),
     ly_(ly),
     w_ (w),
@@ -28,6 +34,8 @@ int Macro::getArea() const { return w_ * h_; }
 bool Macro::isTerminal() const { return is_terminal_; }
 
 std::string_view Macro::getName() const { return name_; }
+
+std::vector<Pin*>& Macro::getPins() { return pins_; }
 
 void Macro::addPin(Pin* pin) { pins_.push_back(pin); }
 

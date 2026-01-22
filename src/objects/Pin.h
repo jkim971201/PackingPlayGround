@@ -24,15 +24,18 @@ class Pin
 
     std::string_view getMacroName() const;
 
+    int id() const;
     int getCx() const;
     int getCy() const;
 
     // Setters
     void setCx(int new_cx);
     void setCy(int new_cy);
+    void setID(int id);
 
   private:
 
+    int id_;
     int cx_;
     int cy_;
     Net* net_;

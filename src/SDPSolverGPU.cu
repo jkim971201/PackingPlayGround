@@ -281,20 +281,20 @@ SDPSolverGPU::loadDataOnGPU()
   d_ADDT_.resize(num_dual);
 
   // Step 7. Prepare A matrices
-  d_A_.resize(num_dual);
-  for(int i = 0; i < m_; i++)
-  {
-    const EigenSMatrix& h_Ai = A_[i];
-    CudaFlattenMatrix<double>& d_Ai = d_A_[i];
-    convertEigenToCudaFlattenMatrix(h_Ai, d_Ai);
-  }
-
-  for(int i = 0; i < p_; i++)
-  {
-    const EigenSMatrix& h_Gi = G_[i];
-    CudaFlattenMatrix<double>& d_Gi = d_A_[i + m_];
-    convertEigenToCudaFlattenMatrix(h_Gi, d_Gi);
-  }
+//  d_A_.resize(num_dual);
+//  for(int i = 0; i < m_; i++)
+//  {
+//    const EigenSMatrix& h_Ai = A_[i];
+//    CudaFlattenMatrix<double>& d_Ai = d_A_[i];
+//    convertEigenToCudaFlattenMatrix(h_Ai, d_Ai);
+//  }
+//
+//  for(int i = 0; i < p_; i++)
+//  {
+//    const EigenSMatrix& h_Gi = G_[i];
+//    CudaFlattenMatrix<double>& d_Gi = d_A_[i + m_];
+//    convertEigenToCudaFlattenMatrix(h_Gi, d_Gi);
+//  }
 
   // Step 8. Prepare LBFGS nodes
   lbfgs_head_ = std::make_shared<LbfgsNode>(n_, target_rank_);
@@ -335,8 +335,8 @@ SDPSolverGPU::initializeRho()
 {
   int num_constr = m_ + p_;
   double num_constr_double = static_cast<double>(num_constr);
-  //rho_ = 500.0 / std::sqrt(num_constr_double);
-  rho_ = 2.0;
+  //rho_ = 1.0 / std::sqrt(num_constr_double);
+  rho_ = 1.0;
 }
 
 void
@@ -346,7 +346,7 @@ SDPSolverGPU::findTargetRank()
   int optimal_rank 
     = static_cast<int>(std::sqrt(2 * num_constr) + 1.0);
   //target_rank_ = std::min(optimal_rank, n_);
-  target_rank_ = 3;
+  target_rank_ = 2;
 }
 
 void
@@ -406,7 +406,6 @@ SDPSolverGPU::computeGradient(
   vectorAxpy(+1.0, lambda, d_grad_workspace_vector_);
 
   // workspace_matrix = 2C + 2 * sum(weight(i) * Ai)
-  //computeWeightedMatrixSum(d_grad_workspace_vector_, d_grad_workspace_matrix_);
   computeWeightedMatrixSumCustomKernel(d_grad_workspace_vector_, d_grad_workspace_matrix_);
 
   // Grad = workspace_matrix * R
@@ -982,13 +981,13 @@ SDPSolverGPU::solve()
 void
 SDPSolverGPU::initParams()
 {
-  param_.max_alm_iter      = 50; 
+  param_.max_alm_iter      = 100; 
   param_.max_lbfgs_iter    = 500;
   param_.log_freq          = 1;  
   param_.lbfgs_length      = 2;
   param_.tol_alm           = 1e-4;
   param_.rho_certificate   = 0.1;
-  param_.rho_update_factor = 1.2;
+  param_.rho_update_factor = 1.05;
   param_.verbose           = true;
 }
 
