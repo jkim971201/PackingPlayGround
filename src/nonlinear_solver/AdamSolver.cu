@@ -13,43 +13,31 @@ namespace macroplacer
 {
 
 __global__ void moveForwardKernelAdam(
-  const int    num_cell,
-  const float  stepLength,
-  const float* curX,
-  const float* curY,
-  const float* curDirectionX,
-  const float* curDirectionY,
-        float* nextX,
-        float* nextY)
+  const int    num_var,
+  const float  step_length,
+  const float* cur_var,
+  const float* cur_direction,
+        float* new_var)
 {
-  // i := cellID
-  const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
-  if(i < num_cell)
-  {
-    nextX[i] = curX[i] - stepLength * curDirectionX[i];
-    nextY[i] = curY[i] - stepLength * curDirectionY[i];
-  }
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if(i < num_var)
+    new_var[i] = cur_var[i] - step_length * cur_direction[i];
 }
 
 __global__ void updateDirectionKernelAdam(
-  const int    num_cell,
+  const int    num_var,
   const float  epsilon,
-  const float* d_ptr_bcMX,
-  const float* d_ptr_bcMY,
-  const float* d_ptr_bcNX,
-  const float* d_ptr_bcNY,
-        float* d_ptr_curDirectionX,
-        float* d_ptr_curDirectionY)
+  const float* bias_corrected_1st_momentum,
+  const float* bias_corrected_2nd_momentum,
+        float* cur_direction)
 {
-  // i := cellID
-  const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if(i < num_cell)
+  if(i < num_var)
   {
-    float bcnx = max(0.0, d_ptr_bcNX[i]);
-    float bcny = max(0.0, d_ptr_bcNY[i]);
-    d_ptr_curDirectionX[i] = d_ptr_bcMX[i] / ( sqrtf(bcnx) + epsilon );
-    d_ptr_curDirectionY[i] = d_ptr_bcMY[i] / ( sqrtf(bcny) + epsilon );
+    float bc_1st = bias_corrected_1st_momentum[i];
+    float bc_2nd = max(0.0, bias_corrected_2nd_momentum[i]);
+    cur_direction[i] = bc_1st / ( sqrtf(bc_2nd) + epsilon );
   }
 }
 
@@ -77,91 +65,62 @@ AdamSolver::initSolver()
   // Step #2. Set Initial Solution
   setInitialSolution();
 
-  target_function_->getInitialGrad(
-    d_curX_,
-    d_curY_,
-    d_curGradX_,
-    d_curGradY_);
+  target_function_->getInitialGrad(d_cur_var_, d_cur_grad_);
 
   target_function_->updateParameters();
 
-  d_curMX_.fillZero();
-  d_curMY_.fillZero();
-
-  d_curNX_.fillZero();
-  d_curNY_.fillZero();
+  d_cur_1st_momentum_.fillZero();
+  d_cur_2nd_momentum_.fillZero();
 }
 
 void
 AdamSolver::moveForward(
-  const float stepLength,
-  const CudaVector<float>& d_curX,
-  const CudaVector<float>& d_curY,
-  const CudaVector<float>& d_curDirectionX,
-  const CudaVector<float>& d_curDirectionY,
-        CudaVector<float>& d_nextX,
-        CudaVector<float>& d_nextY)
+  const float step_length,
+  const CudaVector<float>& d_cur_var,
+  const CudaVector<float>& d_cur_direction,
+        CudaVector<float>& d_new_var)
 {
   int num_thread = 64;
   int num_block_cell = (num_var_ - 1 + num_thread) / num_thread;
 
   moveForwardKernelAdam<<<num_block_cell, num_thread>>>(
     num_var_, 
-    stepLength,
-    d_curX.data(), 
-    d_curY.data(), 
-    d_curDirectionX.data(),
-    d_curDirectionY.data(),
-    d_nextX.data(), 
-    d_nextY.data() );
+    step_length,
+    d_cur_var.data(), 
+    d_cur_direction.data(),
+    d_new_var.data() );
 
-  target_function_->clipToChipBoundary(d_nextX, d_nextY);
+  target_function_->clipToChipBoundary(d_new_var);
 }
 
 void
 AdamSolver::updateMoment(
-  const CudaVector<float>& d_curMX,
-  const CudaVector<float>& d_curMY,
-  const CudaVector<float>& d_curNX,
-  const CudaVector<float>& d_curNY,
-  const CudaVector<float>& d_curGradX,
-  const CudaVector<float>& d_curGradY,
-        CudaVector<float>& d_nextMX,
-        CudaVector<float>& d_nextMY,
-        CudaVector<float>& d_nextNX,
-        CudaVector<float>& d_nextNY)
+  const CudaVector<float>& d_cur_1st_momentum,
+  const CudaVector<float>& d_cur_2nd_momentum,
+  const CudaVector<float>& d_cur_grad,
+        CudaVector<float>& d_new_1st_momentum,
+        CudaVector<float>& d_new_2nd_momentum)
 {
   const float one_minus_beta1 = (1.0 - beta1_);
   const float one_minus_beta2 = (1.0 - beta2_);
 
-  vectorAdd(beta1_, -one_minus_beta1, d_curMX, d_curGradX, d_nextMX);
-  vectorAdd(beta1_, -one_minus_beta1, d_curMY, d_curGradY, d_nextMY);
-
-  vectorAxpySquare(beta2_, one_minus_beta2, d_curNX, d_curGradX, d_nextNX);
-  vectorAxpySquare(beta2_, one_minus_beta2, d_curNY, d_curGradY, d_nextNY);
+  vectorAdd(beta1_, -one_minus_beta1, d_cur_1st_momentum, d_cur_grad, d_new_1st_momentum);
+  vectorAxpySquare(beta2_, one_minus_beta2, d_cur_2nd_momentum, d_cur_grad, d_new_2nd_momentum);
 }
 
 void
 AdamSolver::updateDirection(
-  const CudaVector<float>& d_nextMX,
-  const CudaVector<float>& d_nextMY,
-  const CudaVector<float>& d_nextNX,
-  const CudaVector<float>& d_nextNY,
-        CudaVector<float>& d_bcMX,
-        CudaVector<float>& d_bcMY,
-        CudaVector<float>& d_bcNX,
-        CudaVector<float>& d_bcNY,
-        CudaVector<float>& d_curDirectionX,
-        CudaVector<float>& d_curDirectionY)
+  const CudaVector<float>& d_new_1st_momentum,
+  const CudaVector<float>& d_new_2nd_momentum,
+        CudaVector<float>& d_bias_corrected_1st_momentum,
+        CudaVector<float>& d_bias_corrected_2nd_momentum,
+        CudaVector<float>& d_cur_direction)
 {
   float coeff1 = 1.0 / (1.0 - beta1k_);
   float coeff2 = 1.0 / (1.0 - beta2k_);
 
-  vectorMulScalar(coeff1, d_nextMX, d_bcMX);
-  vectorMulScalar(coeff1, d_nextMY, d_bcMY);
-
-  vectorMulScalar(coeff2, d_nextNX, d_bcNX);
-  vectorMulScalar(coeff2, d_nextNY, d_bcNY);
+  vectorMulScalar(coeff1, d_new_1st_momentum, d_bias_corrected_1st_momentum);
+  vectorMulScalar(coeff2, d_new_2nd_momentum, d_bias_corrected_2nd_momentum);
 
   int num_thread = 64;
   int num_block_cell = (num_var_ - 1 + num_thread) / num_thread;
@@ -169,12 +128,9 @@ AdamSolver::updateDirection(
   updateDirectionKernelAdam<<<num_block_cell, num_thread>>>(
     num_var_, 
     epsilon_,
-    d_bcMX.data(),
-    d_bcMY.data(),
-    d_bcNX.data(),
-    d_bcNY.data(),
-    d_curDirectionX.data(),
-    d_curDirectionY.data() );
+    d_bias_corrected_1st_momentum.data(),
+    d_bias_corrected_2nd_momentum.data(),
+    d_cur_direction.data());
 }
 
 void
@@ -193,107 +149,69 @@ AdamSolver::solve()
   {
     target_function_->iterBgnCbk(iter);
 
-    // Step #1: Compute next gradient
-    target_function_->updatePointAndGetGrad(
-      d_curX_,
-      d_curY_,
-      d_curGradX_,
-      d_curGradY_);
+    // Step #1: Compute gradient
+    target_function_->updatePointAndGetGrad(d_cur_var_, d_cur_grad_);
 
     // Step #2: Update moment
-    updateMoment(d_curMX_,
-                 d_curMY_,
-                 d_curNX_,
-                 d_curNY_,
-                 d_curGradX_,
-                 d_curGradY_,
-                 d_nextMX_,
-                 d_nextMY_,
-                 d_nextNX_,
-                 d_nextNY_);
+    updateMoment(d_cur_1st_momentum_,
+                 d_cur_2nd_momentum_,
+                 d_cur_grad_,
+                 d_new_1st_momentum_,
+                 d_new_2nd_momentum_);
 
     // Step #3: Update direction
-    updateDirection(d_nextMX_,
-                    d_nextMY_,
-                    d_nextNX_,
-                    d_nextNY_,
-                    d_bcMX_,
-                    d_bcMY_,
-                    d_bcNX_,
-                    d_bcNY_,
-                    d_curDirectionX_,
-                    d_curDirectionY_);
+    updateDirection(d_new_1st_momentum_,
+                    d_new_2nd_momentum_,
+                    d_bias_corrected_1st_momentum_,
+                    d_bias_corrected_2nd_momentum_,
+                    d_cur_direction_);
     
     // Step #4: Move forward with the direction vector
-    moveForward(alpha_,
-                d_curX_, 
-                d_curY_,
-                d_curDirectionX_,
-                d_curDirectionY_,
-                d_nextX_,
-                d_nextY_);
+    moveForward(alpha_, d_cur_var_, d_cur_direction_, d_new_var_);
 
     updateOneIteration(iter);
 
     if(target_function_->checkConvergence() == true)
       break;
 
-    target_function_->iterEndCbk(
-      iter, evalTime(solve_start_chrono), d_curX_, d_curY_);
+    target_function_->iterEndCbk(iter, evalTime(solve_start_chrono), d_cur_var_);
   }
 
-  target_function_->solveEndCbk(
-    iter, evalTime(solve_start_chrono), d_curX_, d_curY_);
+  target_function_->solveEndCbk(iter, evalTime(solve_start_chrono), d_cur_var_);
 }
 
 void
 AdamSolver::initForCUDAKernel()
 {
   // Step #1. Vectors for Adam
-  d_curGradX_.resize(num_var_);
-  d_curGradY_.resize(num_var_);
+  d_cur_grad_.resize(num_var_);
 
-  d_curDirectionX_.resize(num_var_);
-  d_curDirectionY_.resize(num_var_);
+  d_cur_direction_.resize(num_var_);
 
-  d_curMX_.resize(num_var_);
-  d_curMY_.resize(num_var_);
+  d_cur_1st_momentum_.resize(num_var_);
+  d_cur_2nd_momentum_.resize(num_var_);
 
-  d_nextMX_.resize(num_var_);
-  d_nextMY_.resize(num_var_);
+  d_new_1st_momentum_.resize(num_var_);
+  d_new_2nd_momentum_.resize(num_var_);
 
-  d_curNX_.resize(num_var_);
-  d_curNY_.resize(num_var_);
-
-  d_nextNX_.resize(num_var_);
-  d_nextNY_.resize(num_var_);
-
-  d_bcMX_.resize(num_var_);
-  d_bcMY_.resize(num_var_);
-
-  d_bcNX_.resize(num_var_);
-  d_bcNY_.resize(num_var_);
+  d_bias_corrected_1st_momentum_.resize(num_var_);
+  d_bias_corrected_2nd_momentum_.resize(num_var_);
 }
 
 void
 AdamSolver::setInitialSolution()
 {
   // Host -> Device
-  target_function_->exportToSolver(d_curX_, d_curY_);
+  target_function_->exportToSolver(d_cur_var_);
 }
 
 void
 AdamSolver::updateOneIteration(int iter)
 {
   // Current <= Next
-  d_curX_.swap(d_nextX_);
-  d_curY_.swap(d_nextY_);
-
-  d_curMX_.swap(d_nextMX_);
-  d_curMY_.swap(d_nextMY_);
-
-  d_curNX_.swap(d_nextNX_);
-  d_curNY_.swap(d_nextNY_);
+  d_cur_var_.swap(d_new_var_);
+  d_cur_1st_momentum_.swap(d_new_1st_momentum_);
+  d_cur_2nd_momentum_.swap(d_new_2nd_momentum_);
 
   alpha_ *= 0.997;
 

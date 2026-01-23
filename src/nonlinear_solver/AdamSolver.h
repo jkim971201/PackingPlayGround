@@ -23,19 +23,13 @@ class AdamSolver : public SolverBase
     void updateOneIteration(int iter) override;
 
     void moveForward(
-      const float stepLength,
-      const CudaVector<float>& d_curX,
-      const CudaVector<float>& d_curY,
-      const CudaVector<float>& d_curDirectionX,
-      const CudaVector<float>& d_curDirectionY,
-            CudaVector<float>& d_nextX,
-            CudaVector<float>& d_nextY);
+      const float step_length,
+      const CudaVector<float>& d_cur_var,
+      const CudaVector<float>& d_cur_direction,
+            CudaVector<float>& d_new_var);
 
-    CudaVector<float> d_curDirectionX_;
-    CudaVector<float> d_curDirectionY_;
-
-    CudaVector<float> d_curGradX_;
-    CudaVector<float> d_curGradY_;
+    CudaVector<float> d_cur_direction_;
+    CudaVector<float> d_cur_grad_;
 
     // Adam Optimizer
     float alpha_;
@@ -48,49 +42,30 @@ class AdamSolver : public SolverBase
     float beta2k_; // beta2_ ^ (k+1)
 
     // First Moment
-    CudaVector<float> d_curMX_;
-    CudaVector<float> d_curMY_;
-
-    CudaVector<float> d_nextMX_;
-    CudaVector<float> d_nextMY_;
+    CudaVector<float> d_cur_1st_momentum_;
+    CudaVector<float> d_new_1st_momentum_;
 
     // Second Moment 
-    CudaVector<float> d_curNX_;
-    CudaVector<float> d_curNY_;
-
-    CudaVector<float> d_nextNX_;
-    CudaVector<float> d_nextNY_;
+    CudaVector<float> d_cur_2nd_momentum_;
+    CudaVector<float> d_new_2nd_momentum_;
 
     // Bias Corrected
-    CudaVector<float> d_bcMX_;
-    CudaVector<float> d_bcMY_;
-
-    CudaVector<float> d_bcNX_;
-    CudaVector<float> d_bcNY_;
+    CudaVector<float> d_bias_corrected_1st_momentum_;
+    CudaVector<float> d_bias_corrected_2nd_momentum_;
 
     void updateMoment(
-      const CudaVector<float>& d_curMX,
-      const CudaVector<float>& d_curMY,
-      const CudaVector<float>& d_curNX,
-      const CudaVector<float>& d_curNY,
-      const CudaVector<float>& d_curGradX,
-      const CudaVector<float>& d_curGradY,
-            CudaVector<float>& d_nextMX,
-            CudaVector<float>& d_nextMY,
-            CudaVector<float>& d_nextNX,
-            CudaVector<float>& d_nextNY);
+      const CudaVector<float>& d_cur_1st_momentum,
+      const CudaVector<float>& d_cur_2nd_momentum,
+      const CudaVector<float>& d_cur_grad,
+            CudaVector<float>& d_new_1st_momentum,
+            CudaVector<float>& d_new_2nd_momentum);
 
     void updateDirection(
-      const CudaVector<float>& d_nextMX,
-      const CudaVector<float>& d_nextMY,
-      const CudaVector<float>& d_nextNX,
-      const CudaVector<float>& d_nextNY,
-            CudaVector<float>& d_bcMX,
-            CudaVector<float>& d_bcMY,
-            CudaVector<float>& d_bcNX,
-            CudaVector<float>& d_bcNY,
-            CudaVector<float>& d_curDirectionX,
-            CudaVector<float>& d_curDirectionY);
+      const CudaVector<float>& d_new_1st_momentum,
+      const CudaVector<float>& d_new_2nd_momentum,
+            CudaVector<float>& d_bias_corrected_1st_momentum,
+            CudaVector<float>& d_bias_corrected_2nd_momentum,
+            CudaVector<float>& d_cur_direction);
 };
 
 }; // namespace skyline

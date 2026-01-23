@@ -30,40 +30,28 @@ class TargetFunction
       std::vector<Pin*>& pins);
 
     // APIs
+    // var : {x_vector, y_vector, ... }
+
     void updatePointAndGetGrad(
-      const CudaVector<float>& cur_x,
-      const CudaVector<float>& cur_y,
-            CudaVector<float>& grad_x,
-            CudaVector<float>& grad_y);
+      const CudaVector<float>& var,
+            CudaVector<float>& grad);
 
     void getInitialGrad(
-      const CudaVector<float>& initial_x,
-      const CudaVector<float>& initial_y,
-            CudaVector<float>& initial_grad_x,
-            CudaVector<float>& initial_grad_y);
+      const CudaVector<float>& initial_var,
+            CudaVector<float>& initial_grad);
 
-    void clipToChipBoundary(
-      CudaVector<float>& cell_cx,
-      CudaVector<float>& cell_cy);
+    void clipToChipBoundary(CudaVector<float>& var);
 
-    void exportToSolver(
-      CudaVector<float>& cell_cx,
-      CudaVector<float>& cell_cy); 
+    void exportToSolver(CudaVector<float>& var_from_solver); 
     // This will be used only to get initial solution
 
     void updateParameters();
 
     void solveBgnCbk();
-    void solveEndCbk(
-      int iter, double runtime,
-      const CudaVector<float>& d_cell_x, 
-      const CudaVector<float>& d_cell_y);
+    void solveEndCbk(int iter, double runtime, const CudaVector<float>& var);
 
     void iterBgnCbk(int iter);
-    void iterEndCbk(
-      int iter, double runtime,
-      const CudaVector<float>& d_cell_x, 
-      const CudaVector<float>& d_cell_y);
+    void iterEndCbk(int iter, double runtime, const CudaVector<float>& var);
 
     bool checkConvergence() const;
 
@@ -71,6 +59,7 @@ class TargetFunction
 
   private:
 
+    int num_var_;
     int num_pin_;
     int num_net_;
     int num_macro_;
@@ -88,8 +77,7 @@ class TargetFunction
     float hpwl_;
     float sum_overlap_area_;
 
-    std::vector<float> h_macro_cx_;
-    std::vector<float> h_macro_cy_;
+    std::vector<float> h_macro_pos_;
 
     std::vector<Macro*> macro_ptrs_;
 
@@ -113,8 +101,7 @@ class TargetFunction
     CudaVector<float> d_pin_grad_x_;
     CudaVector<float> d_pin_grad_y_;
 
-    CudaVector<float> d_wl_grad_x_;
-    CudaVector<float> d_wl_grad_y_;
+    CudaVector<float> d_wl_grad_;
 
     /* Data for Overlap gradient computation */
     CudaVector<int>   d_index_pair_;
@@ -122,8 +109,7 @@ class TargetFunction
     CudaVector<float> d_macro_height_;
 
     CudaVector<float> d_overlap_area_;
-    CudaVector<float> d_overlap_grad_x_;
-    CudaVector<float> d_overlap_grad_y_;
+    CudaVector<float> d_overlap_grad_;
 
     // These are constant
     CudaVector<int>   d_pin2net_;
@@ -132,21 +118,15 @@ class TargetFunction
     CudaVector<float> d_net_weight_;
 
     void computeWirelengthSubGrad(
-      const CudaVector<float>& cur_x,
-      const CudaVector<float>& cur_y,
-            CudaVector<float>& grad_x,
-            CudaVector<float>& grad_y);
+      const CudaVector<float>& var,
+            CudaVector<float>& grad);
 
     void computeOverlapSubGrad(
-      const CudaVector<float>& cur_x,
-      const CudaVector<float>& cur_y,
-            CudaVector<float>& grad_x,
-            CudaVector<float>& grad_y);
+      const CudaVector<float>& var,
+            CudaVector<float>& grad);
 
     // export to database
-    void exportToDb(
-      const CudaVector<float>& macro_cx, 
-      const CudaVector<float>& macro_cy);
+    void exportToDb(const CudaVector<float>& macro_pos);
 
     float computeHpwl();
 

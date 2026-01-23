@@ -17,11 +17,8 @@ SolverBase::initializeSolverBase(std::shared_ptr<TargetFunction> target_function
 {
   num_var_ = target_function->getNumVariable();
 
-  d_curX_.resize(num_var_);
-  d_curY_.resize(num_var_);
-
-  d_nextX_.resize(num_var_);
-  d_nextY_.resize(num_var_);
+  d_cur_var_.resize(num_var_);
+  d_new_var_.resize(num_var_);
 }
 
 }

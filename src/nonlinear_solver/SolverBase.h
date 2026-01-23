@@ -37,10 +37,8 @@ class SolverBase
     std::shared_ptr<TargetFunction> target_function_;
 
     /* Device Array */
-    CudaVector<float> d_curX_;
-    CudaVector<float> d_curY_;
-    CudaVector<float> d_nextX_;
-    CudaVector<float> d_nextY_;
+    CudaVector<float> d_cur_var_;
+    CudaVector<float> d_new_var_;
 };
 
 } 

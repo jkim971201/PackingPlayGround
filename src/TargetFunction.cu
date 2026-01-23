@@ -299,11 +299,11 @@ TargetFunction::TargetFunction(
   num_pin_   = pins.size();
   num_macro_ = macros.size();
   num_pair_  = num_macro_ * (num_macro_ - 1) / 2;
+  num_var_   = 2 * num_macro_;
 
-  lambda_    = 6.0f;
+  lambda_    = 5.0f;
 
-  h_macro_cx_.resize(num_macro_);
-  h_macro_cy_.resize(num_macro_);
+  h_macro_pos_.resize(num_var_);
   // We don't want to store these data permanently
   std::vector<int> h_pin2net(num_pin_);
   std::vector<int> h_pin2macro(num_pin_, -1);
@@ -329,8 +329,8 @@ TargetFunction::TargetFunction(
   {
     auto macro_ptr = macros[macro_id];
     macro_ptrs_.push_back(macro_ptr);
-    h_macro_cx_[macro_id] = macro_ptr->getCx();
-    h_macro_cy_[macro_id] = macro_ptr->getCy();
+    h_macro_pos_[macro_id] = macro_ptr->getCx();
+    h_macro_pos_[macro_id + num_macro_] = macro_ptr->getCy();
     h_macro_width[macro_id] = macro_ptr->getWidth();
     h_macro_height[macro_id] = macro_ptr->getHeight();
     for(auto& pin : macro_ptr->getPins())
@@ -362,8 +362,7 @@ TargetFunction::TargetFunction(
   d_pin_grad_x_.resize(num_pin_);
   d_pin_grad_y_.resize(num_pin_);
 
-  d_wl_grad_x_.resize(num_macro_);
-  d_wl_grad_y_.resize(num_macro_);
+  d_wl_grad_.resize(num_var_);
 
   d_pin2net_.resize(num_pin_);
   d_pin2macro_.resize(num_pin_);
@@ -381,8 +380,7 @@ TargetFunction::TargetFunction(
 
   d_overlap_area_.resize(num_pair_);
 
-  d_overlap_grad_x_.resize(num_macro_);
-  d_overlap_grad_y_.resize(num_macro_);
+  d_overlap_grad_.resize(num_var_);
 
   d_macro_width_  = h_macro_width;
   d_macro_height_ = h_macro_height;
@@ -390,42 +388,31 @@ TargetFunction::TargetFunction(
 }
 
 void
-TargetFunction::updatePointAndGetGrad(
-  const CudaVector<float>& cur_x,
-  const CudaVector<float>& cur_y,
-        CudaVector<float>& grad_x,
-        CudaVector<float>& grad_y)
+TargetFunction::updatePointAndGetGrad(const CudaVector<float>& var, CudaVector<float>& grad)
 {
   // For WireLength SubGrad
-  computeWirelengthSubGrad(cur_x, cur_y, d_wl_grad_x_, d_wl_grad_y_);
+  computeWirelengthSubGrad(var, d_wl_grad_);
 
   // For Density SubGrad
-  computeOverlapSubGrad(cur_x, cur_y, grad_x, grad_y);
+  computeOverlapSubGrad(var, d_overlap_grad_);
 
-  vectorAdd(1.0f, lambda_, d_wl_grad_x_, d_overlap_grad_x_, grad_x);
-  vectorAdd(1.0f, lambda_, d_wl_grad_y_, d_overlap_grad_y_, grad_y);
+  vectorAdd(1.0f, lambda_, d_wl_grad_, d_overlap_grad_, grad);
 }
 
 void 
 TargetFunction::getInitialGrad(
-  const CudaVector<float>& initial_x,
-  const CudaVector<float>& initial_y,
-        CudaVector<float>& initial_grad_x,
-        CudaVector<float>& initial_grad_y)
+  const CudaVector<float>& initial_var,
+        CudaVector<float>& initial_grad)
 {
-  computeWirelengthSubGrad(
-    initial_x, initial_y, d_wl_grad_x_, d_wl_grad_y_);
+  computeWirelengthSubGrad(initial_var, d_wl_grad_);
 
-  computeOverlapSubGrad(initial_x, initial_y, d_overlap_grad_x_, d_overlap_grad_y_);
+  computeOverlapSubGrad(initial_var, d_overlap_grad_);
 
-  vectorAdd(1.0f, lambda_, d_wl_grad_x_, d_overlap_grad_x_, initial_grad_x);
-  vectorAdd(1.0f, lambda_, d_wl_grad_y_, d_overlap_grad_y_, initial_grad_y);
+  vectorAdd(1.0f, lambda_, d_wl_grad_, d_overlap_grad_, initial_grad);
 }
 
 void 
-TargetFunction::clipToChipBoundary(
-  CudaVector<float>& cell_cx,
-  CudaVector<float>& cell_cy)
+TargetFunction::clipToChipBoundary(CudaVector<float>& var)
 {
   int num_thread = 64;
   int num_block_cell = (num_macro_ - 1 + num_thread) / num_thread;
@@ -438,8 +425,8 @@ TargetFunction::clipToChipBoundary(
     y_max_,
     d_macro_width_.data(),
     d_macro_height_.data(),
-    cell_cx.data(),
-    cell_cy.data());
+    var.data(),
+    var.data() + num_macro_);
 }
 
 void 
@@ -465,12 +452,9 @@ TargetFunction::solveBgnCbk()
 }
 
 void 
-TargetFunction::solveEndCbk(
-  int iter, double runtime,
-  const CudaVector<float>& macro_cx, 
-  const CudaVector<float>& macro_cy)
+TargetFunction::solveEndCbk(int iter, double runtime, const CudaVector<float>& macro_pos)
 {
-  exportToDb(macro_cx, macro_cy);
+  exportToDb(macro_pos);
 }
 
 void 
@@ -483,8 +467,7 @@ TargetFunction::iterBgnCbk(int iter)
 void 
 TargetFunction::iterEndCbk(
   int iter, double runtime,
-  const CudaVector<float>& macro_cx, 
-  const CudaVector<float>& macro_cy)
+  const CudaVector<float>& macro_pos)
 {
 
 }
@@ -498,29 +481,24 @@ TargetFunction::checkConvergence() const
 int 
 TargetFunction::getNumVariable() const
 {
-  return num_macro_;
+  return num_var_;
 }
 
 void
-TargetFunction::computeWirelengthSubGrad(
-  const CudaVector<float>& cur_x,
-  const CudaVector<float>& cur_y,
-        CudaVector<float>& wl_grad_x,
-        CudaVector<float>& wl_grad_y)
+TargetFunction::computeWirelengthSubGrad(const CudaVector<float>& pos, CudaVector<float>& wl_grad)
 {
   int num_thread    = 64;
   int num_block_pin = (num_pin_ + num_thread) / num_thread; 
   int num_block_net = (num_net_ + num_thread) / num_thread; 
 
-  wl_grad_x.fillZero();
-  wl_grad_y.fillZero();
+  wl_grad.fillZero();
 
   // Step #1: Update PinCoordinate
   updatePinCoordinateKernel<<<num_block_pin, num_thread>>>(
     num_pin_, 
     d_pin2macro_.data(),
-    cur_x.data(),
-    cur_y.data(),
+    pos.data(),              /* cur_x */
+    pos.data() + num_macro_, /* cur_y */
     d_pin_x_offset_.data(),
     d_pin_y_offset_.data(),
     d_pin_x_.data(),
@@ -556,35 +534,32 @@ TargetFunction::computeWirelengthSubGrad(
     d_pin2macro_.data(),
     d_pin_grad_x_.data(),
     d_pin_grad_y_.data(),
-    wl_grad_x.data(),
-    wl_grad_y.data());
+    wl_grad.data(),               /* grad_x */
+    wl_grad.data() + num_macro_); /* grad_y */
 }
 
 void 
 TargetFunction::computeOverlapSubGrad(
-  const CudaVector<float>& cur_x,
-  const CudaVector<float>& cur_y,
-        CudaVector<float>& overlap_grad_x,
-        CudaVector<float>& overlap_grad_y)
+  const CudaVector<float>& pos, 
+        CudaVector<float>& overlap_grad)
 {
   int num_thread = 64;
   int num_block_pair = (num_pair_ - 1 + num_thread) / num_thread;
 
   d_overlap_area_.fillZero();
-  overlap_grad_x.fillZero();
-  overlap_grad_y.fillZero();
+  overlap_grad.fillZero();
 
   computeOverlapSubGradKernel<<<num_block_pair, num_thread>>>(
     num_pair_,
     num_macro_,
     d_index_pair_.data(),
-    cur_x.data(),
-    cur_y.data(),
+    pos.data(),              /* cur_x */
+    pos.data() + num_macro_, /* cur_y */
     d_macro_width_.data(),
     d_macro_height_.data(),
     d_overlap_area_.data(),
-    overlap_grad_x.data(),
-    overlap_grad_y.data());
+    overlap_grad.data(),               /* overlap_grad_x */
+    overlap_grad.data() + num_macro_); /* overlap_grad_y */
 }
 
 float
@@ -610,27 +585,24 @@ TargetFunction::computeHpwl()
 }
 
 void
-TargetFunction::exportToSolver(
-  CudaVector<float>& cell_cx,
-  CudaVector<float>& cell_cy)
+TargetFunction::exportToSolver(CudaVector<float>& var_from_solver)
 {
   // Host to Device
-  cell_cx = h_macro_cx_;
-  cell_cy = h_macro_cy_;
+  var_from_solver = h_macro_pos_;
 }
 
 void
-TargetFunction::exportToDb(
-  const CudaVector<float>& macro_cx,
-  const CudaVector<float>& macro_cy)
+TargetFunction::exportToDb(const CudaVector<float>& macro_pos)
 {
-  thrust::copy(macro_cx.begin(), macro_cx.end(), h_macro_cx_.begin());
-  thrust::copy(macro_cy.begin(), macro_cy.end(), h_macro_cy_.begin());
+  thrust::copy(macro_pos.begin(), macro_pos.end(), h_macro_pos_.begin());
 
   for(int macro_id = 0; macro_id < num_macro_; macro_id++)
   {
-    macro_ptrs_[macro_id]->setCx(h_macro_cx_[macro_id]);
-    macro_ptrs_[macro_id]->setCy(h_macro_cy_[macro_id]);
+    auto macro_ptr = macro_ptrs_[macro_id];
+    float macro_cx = h_macro_pos_[macro_id];
+    float macro_cy = h_macro_pos_[macro_id + num_macro_];
+    macro_ptr->setCx(macro_cx);
+    macro_ptr->setCy(macro_cy);
   }
 }
 
