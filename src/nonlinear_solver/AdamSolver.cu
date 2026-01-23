@@ -56,17 +56,26 @@ __global__ void updateDirectionKernelAdam(
 AdamSolver::AdamSolver(std::shared_ptr<TargetFunction> problem)
   : SolverBase(problem)
 {
-  alpha_  = 1e-1; // learning_rate
-  beta1_  = 0.9;
-  beta2_  = 0.999;
-  beta1k_ = beta1_;
-  beta2k_ = beta2_;
+  alpha_   = 1e-2; // learning_rate
+  beta1_   = 0.9;
+  beta2_   = 0.999;
+  beta1k_  = beta1_;
+  beta2k_  = beta2_;
+  epsilon_ = 1e-8;
+
+  initForCUDAKernel();
 }
 
 void
 AdamSolver::initSolver()
 {
-  initForCUDAKernel();
+  // Step #1. Reset parameters
+  alpha_  = 1e-2; // learning_rate
+  beta1k_ = beta1_;
+  beta2k_ = beta2_;
+
+  // Step #2. Set Initial Solution
+  setInitialSolution();
 
   target_function_->getInitialGrad(
     d_curX_,
@@ -75,6 +84,12 @@ AdamSolver::initSolver()
     d_curGradY_);
 
   target_function_->updateParameters();
+
+  d_curMX_.fillZero();
+  d_curMY_.fillZero();
+
+  d_curNX_.fillZero();
+  d_curNY_.fillZero();
 }
 
 void
@@ -173,7 +188,7 @@ AdamSolver::solve()
   auto solve_start_chrono = getChronoNow();
 
   int iter = 0;
-  int max_opt_iter = 1000;
+  int max_opt_iter = 400;
   for(; iter < max_opt_iter; iter++)
   {
     target_function_->iterBgnCbk(iter);
@@ -258,14 +273,6 @@ AdamSolver::initForCUDAKernel()
 
   d_bcNX_.resize(num_var_);
   d_bcNY_.resize(num_var_);
-
-  beta1k_ = beta1_;
-  beta2k_ = beta2_;
-
-  epsilon_ = 1e-8;
-
-  // Step #2. Set Initial Solution
-  setInitialSolution();
 }
 
 void

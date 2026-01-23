@@ -24,7 +24,10 @@ MacroPlacer::refineMacroPlace()
   std::unique_ptr<AdamSolver> adam_solver
     = std::make_unique<AdamSolver>(function);
 
-  adam_solver->solve();
+  // Restart ADAM
+  const int max_phase = 50;
+  for(int phase = 0; phase < max_phase; phase++)
+    adam_solver->solve();
 }
 
 }

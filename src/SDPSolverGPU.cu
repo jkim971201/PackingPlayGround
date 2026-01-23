@@ -336,6 +336,7 @@ SDPSolverGPU::initializeRho()
   int num_constr = m_ + p_;
   double num_constr_double = static_cast<double>(num_constr);
   //rho_ = 1.0 / std::sqrt(num_constr_double);
+  //rho_ = 1.0 * std::sqrt(n_);
   rho_ = 1.0 * std::sqrt(num_constr_double);
 }
 
@@ -347,7 +348,7 @@ SDPSolverGPU::findTargetRank()
     = static_cast<int>(std::sqrt(2 * num_constr) + 1.0);
   //target_rank_ = std::min(optimal_rank, n_);
   //target_rank_ = std::sqrt(num_constr);
-  target_rank_ = ;
+  target_rank_ = 2;
 }
 
 void
