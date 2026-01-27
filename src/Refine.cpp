@@ -19,7 +19,7 @@ MacroPlacer::refineMacroPlace()
     = std::make_shared<TargetFunction>(
       x_min, y_min, x_max, y_max,
       painter_,
-      macro_ptrs_, net_ptrs_, pin_ptrs_);
+      movable_, net_ptrs_, pin_ptrs_);
 
   std::unique_ptr<AdamSolver> adam_solver
     = std::make_unique<AdamSolver>(function);
@@ -29,7 +29,7 @@ MacroPlacer::refineMacroPlace()
   for(int phase = 0; phase < max_phase; phase++)
   {
     adam_solver->solve();
-    painter_->saveImage(phase, function->getHpwl(), function->getSumOverlap());
+    //painter_->saveImage(phase, function->getHpwl(), function->getSumOverlap());
   }
 }
 

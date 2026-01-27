@@ -82,6 +82,12 @@ Painter::setNets(std::vector<Net*>& nets)
 }
 
 void
+Painter::setWL(int64_t val)
+{
+  wl_ = val;
+}
+
+void
 Painter::drawNet(QPainter* painter, const Net* net)
 {
   const auto pins = net->getPins();

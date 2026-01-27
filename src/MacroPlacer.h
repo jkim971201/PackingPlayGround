@@ -37,6 +37,8 @@ class MacroPlacer
 
     void run();
 
+    void prepareVisualization();
+
     int show();
 
     // Getters
@@ -58,8 +60,6 @@ class MacroPlacer
     // MacroPlacer.cpp
     std::pair<double, double> originalToScaled(double x, double y) const;
     std::pair<double, double> scaledToOriginal(double x, double y) const;
-
-    void prepareVisualization();
 
     void updateWL();
     void computeFixedInfo();

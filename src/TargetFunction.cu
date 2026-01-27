@@ -176,7 +176,7 @@ __global__ void addPinGrad(
   if(pin_id < num_pin)
   {
     int cell_id = pin2cell[pin_id];
-    if(cell_id < 0)
+    if(cell_id < 0) // -1 -> TERMINAL
       return;
 
     float grad_x = pin_grad_x[pin_id];
@@ -286,7 +286,7 @@ __global__ void computeOverlapSubGradKernel(
 TargetFunction::TargetFunction(
   float x_min, float y_min, float x_max, float y_max,
   std::shared_ptr<Painter> painter,
-  std::vector<Macro*>& macros,
+  std::vector<Macro*>& movable_macros,
   std::vector<Net*>& nets,
   std::vector<Pin*>& pins)
 {
@@ -297,7 +297,7 @@ TargetFunction::TargetFunction(
   y_max_     = y_max;
   num_net_   = nets.size();
   num_pin_   = pins.size();
-  num_macro_ = macros.size();
+  num_macro_ = movable_macros.size();
   num_pair_  = num_macro_ * (num_macro_ - 1) / 2;
   num_var_   = 2 * num_macro_;
 
@@ -307,9 +307,10 @@ TargetFunction::TargetFunction(
   // We don't want to store these data permanently
   std::vector<int> h_pin2net(num_pin_);
   std::vector<int> h_pin2macro(num_pin_, -1);
-  std::vector<int> h_net_start(num_net_+ 1);
+  std::vector<int> h_net_start(num_net_+ 1, -1);
   std::vector<float> h_macro_width(num_macro_);
   std::vector<float> h_macro_height(num_macro_);
+  std::vector<float> h_macro_area(num_macro_);
   std::vector<int> h_index_pair;
   h_index_pair.reserve(num_pair_);
 
@@ -319,7 +320,13 @@ TargetFunction::TargetFunction(
     int net_id = net_ptr->id();
     h_net_start[net_id] = net_pins[0].id();
     for(auto& pin : net_pins)
+    {
       h_pin2net[pin.id()] = net_id;
+      //printf("NetID: %d PinID: %d", net_id, pin.id());
+      //if(pin.getMacro()->isTerminal() == true)
+      //  printf(" TERMINAL");
+      //printf("\n");
+    }
   }
 
   h_net_start[num_net_] = num_pin_;
@@ -327,18 +334,31 @@ TargetFunction::TargetFunction(
   macro_ptrs_.reserve(num_macro_);
   for(int macro_id = 0; macro_id < num_macro_; macro_id++)
   {
-    auto macro_ptr = macros[macro_id];
+    auto macro_ptr = movable_macros[macro_id];
     macro_ptrs_.push_back(macro_ptr);
     h_macro_pos_[macro_id] = macro_ptr->getCx();
     h_macro_pos_[macro_id + num_macro_] = macro_ptr->getCy();
     h_macro_width[macro_id] = macro_ptr->getWidth();
     h_macro_height[macro_id] = macro_ptr->getHeight();
+    h_macro_area[macro_id] = macro_ptr->getOriginalArea();
     for(auto& pin : macro_ptr->getPins())
       h_pin2macro[pin->id()] = macro_id;
 
     for(int macro_id2 = macro_id + 1; macro_id2 < num_macro_; macro_id2++)
       h_index_pair.push_back(macro_id + macro_id2 * num_macro_);
   }
+
+  std::vector<float> h_pin_cx(num_pin_);
+  std::vector<float> h_pin_cy(num_pin_);
+  for(int pin_id = 0; pin_id < num_pin_; pin_id++)
+  {
+    auto pin_ptr = pins[pin_id];
+    assert(pin_ptr->id() == pin_id);
+    h_pin_cx[pin_id] = pin_ptr->getCx();
+    h_pin_cy[pin_id] = pin_ptr->getCy();
+  }
+
+  sum_macro_area_ = std::accumulate(h_macro_area.begin(), h_macro_area.end(), 0.0f);
 
   // Initialize CUDA Kernel
   // wirelength
@@ -385,6 +405,9 @@ TargetFunction::TargetFunction(
   d_macro_width_  = h_macro_width;
   d_macro_height_ = h_macro_height;
   d_index_pair_   = h_index_pair;
+
+  d_pin_x_ = h_pin_cx;
+  d_pin_y_ = h_pin_cy;
 }
 
 void
@@ -439,7 +462,7 @@ TargetFunction::updateParameters()
 void
 TargetFunction::printProgress(int iter) const
 {
-  if(iter == 0 || iter % 1000 == 0)
+  if(iter == 0 || iter % 50 == 0)
   {
     printf("Iter: %4d HPWL: %8f SumOverlap: %8f\n", 
       iter, hpwl_, sum_overlap_area_);
@@ -460,8 +483,6 @@ TargetFunction::solveEndCbk(int iter, double runtime, const CudaVector<float>& m
 void 
 TargetFunction::iterBgnCbk(int iter)
 {
-  updateParameters();
-  printProgress(iter);
 }
 
 void 
@@ -469,13 +490,17 @@ TargetFunction::iterEndCbk(
   int iter, double runtime,
   const CudaVector<float>& macro_pos)
 {
-
+  updateParameters();
+  printProgress(iter);
 }
 
 bool 
 TargetFunction::checkConvergence() const
 {
-  return false;
+  float area_total = sum_macro_area_;
+  float area_overlap = sum_overlap_area_;
+  float thr_coeff = 0.01;
+  return area_overlap < area_total * thr_coeff;
 }
 
 int 
@@ -577,9 +602,6 @@ TargetFunction::computeOverlapSubGrad(
 float
 TargetFunction::computeHpwl()
 {
-  d_net_bbox_width_.fillZero();
-  d_net_bbox_height_.fillZero();
-
   int num_thread = 64;
   int num_block_net = (num_net_ - 1 + num_thread) / num_thread;
 

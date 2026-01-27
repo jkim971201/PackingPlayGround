@@ -115,6 +115,12 @@ class TargetFunction
     CudaVector<float> d_overlap_area_;
     CudaVector<float> d_overlap_grad_;
 
+    /* Data for Shape gradient computation */
+    CudaVector<float> d_width_;
+    CudaVector<float> d_area_;
+
+    float sum_macro_area_;
+
     // These are constant
     CudaVector<int>   d_pin2net_;
     CudaVector<int>   d_pin2macro_;

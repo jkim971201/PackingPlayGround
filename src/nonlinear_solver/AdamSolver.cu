@@ -171,6 +171,8 @@ AdamSolver::solve()
 
     updateOneIteration(iter);
 
+    target_function_->iterEndCbk(iter, 0.0, d_cur_var_);
+
     if(target_function_->checkConvergence() == true)
       break;
 

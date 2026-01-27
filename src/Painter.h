@@ -31,6 +31,8 @@ class Painter : public QWidget
     void setMacros(std::vector<Macro*>& macros);
     void setNets(std::vector<Net*>& nets);
 
+    void setWL(int64_t val);
+
     // APIs
     void saveImage(int iter, float hpwl, float sum_overlap);
 

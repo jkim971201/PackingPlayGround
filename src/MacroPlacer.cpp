@@ -164,13 +164,14 @@ MacroPlacer::updateWL()
     net->updateWL();
     totalWL_ += static_cast<int64_t>( net->wl() );
   }
+
+  if(painter_ != nullptr)
+    painter_->setWL(totalWL_);
 }
 
 void
 MacroPlacer::run()
 {
-  prepareVisualization();
-
   auto laplacian_start = getChronoNow();
 
   computeFixedInfo();
@@ -248,11 +249,11 @@ MacroPlacer::computeIneqConstraint(EigenVector& ineq_constraint)
   int count = 0;
   for(int i = 0; i < num_movable; i++)
   {
-    double rect_area_i = static_cast<double>(movable_[i]->getArea()) * scale;
+    double rect_area_i = static_cast<double>(movable_[i]->getOriginalArea()) * scale;
     double radius_i = std::sqrt(rect_area_i / k_pi);
     for(int j = i + 1; j < num_movable; j++)
     {
-      double rect_area_j = static_cast<double>(movable_[j]->getArea()) * scale;
+      double rect_area_j = static_cast<double>(movable_[j]->getOriginalArea()) * scale;
       double radius_j = std::sqrt(rect_area_j / k_pi);
       double radius_sum = radius_i + radius_j;
       double radius_sum_square = radius_sum * radius_sum;

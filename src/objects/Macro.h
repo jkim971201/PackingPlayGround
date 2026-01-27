@@ -13,7 +13,11 @@ class Macro
 {
   public:
 
+    // for HARD Block
     Macro(const std::string& name, int lx, int ly, int w, int h, bool is_terminal);
+
+    // for SOFT Block
+    Macro(const std::string& name, int lx, int ly, int w, int h, int area, bool is_terminal);
 
     // Getters
     int getLx() const; 
@@ -24,7 +28,16 @@ class Macro
     int getCy() const; 
     int getWidth() const; 
     int getHeight() const; 
-    int getArea() const;
+    int getOriginalArea() const;
+
+    float getMinAR() const;
+    float getMaxAR() const;
+
+    float getTempWidth() const;
+    float getTempHeight() const;
+    float getTempArea() const;
+
+    bool isSoftBlock() const;
     bool isTerminal() const; 
     std::string_view getName() const; 
 
@@ -43,6 +56,9 @@ class Macro
     void addPin(Pin* pin);
     void move(int dx, int dy);
 
+    void setTempWidth(float val);
+    void setTempHeight(float val);
+
   private:
 
     std::string name_;
@@ -51,6 +67,15 @@ class Macro
     int  ly_;
     int  w_;
     int  h_;
+    int  area_;
+
+    float min_ar_;
+    float max_ar_;
+
+    float temp_w_;
+    float temp_h_;
+
+    bool is_soft_block_;
     bool is_terminal_;
 
     std::vector<Pin*> pins_;

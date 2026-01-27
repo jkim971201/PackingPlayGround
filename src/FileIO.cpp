@@ -53,7 +53,7 @@ MacroPlacer::readBlock(const std::filesystem::path& block_file)
     exit(1);
   }
 
-  design_name_ = filename.substr(slash_pos +1, dot_pos - slash_pos - 1);
+  design_name_ = filename.substr(slash_pos + 1, dot_pos - slash_pos - 1);
 
   std::ifstream ifs;
   ifs.open(block_file);
@@ -70,6 +70,9 @@ MacroPlacer::readBlock(const std::filesystem::path& block_file)
       continue;
 
     auto tokens = tokenize(line, "(),");
+    if(tokens.size() <= 1)
+      continue;
+
     if(tokens[0].front() == '#')
       continue;
 
@@ -164,14 +167,17 @@ MacroPlacer::readPlacement(const std::filesystem::path& pl_file)
       continue;
 
     auto tokens = tokenize(line, "(),");
+    if(tokens.size() <= 1)
+      continue;
+
     if(tokens[0].front() == '#')
       continue;
 
-    if(tokens[0] == "UCSC")
+    if(tokens[0] == "UCSC" || tokens[0] == "UCLA")
       continue;
   
     assert(tokens.size() == 3);
-    
+
     std::string macro_name = tokens[0];
     int lx = std::stoi(tokens[1]);
     int ly = std::stoi(tokens[2]);
@@ -223,6 +229,9 @@ MacroPlacer::readNet(const std::filesystem::path& net_file)
         continue;
 
       auto tokens = tokenize(line, "");
+      if(tokens.size() <= 1)
+        continue;
+
       if(tokens[0].front() == '#')
         continue;
 
@@ -250,11 +259,14 @@ MacroPlacer::readNet(const std::filesystem::path& net_file)
       continue;
 
     auto tokens = tokenize(line, "");
+    if(tokens.size() <= 1)
+      continue;
+
     if(tokens[0].front() == '#')
       continue;
 
-    if(tokens[0] == "UCLA")
-      continue;
+    if(tokens[0] == "UCSC" || tokens[0] == "UCLA")
+     continue;
 
     if(tokens[0] == "NumNets")
       num_nets = std::stoi(tokens[2]);
