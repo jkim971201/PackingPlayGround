@@ -484,6 +484,18 @@ TargetFunction::getNumVariable() const
   return num_var_;
 }
 
+float
+TargetFunction::getSumOverlap() const
+{
+  return sum_overlap_area_;
+}
+
+float
+TargetFunction::getHpwl() const
+{
+  return hpwl_;
+}
+
 void
 TargetFunction::computeWirelengthSubGrad(const CudaVector<float>& pos, CudaVector<float>& wl_grad)
 {

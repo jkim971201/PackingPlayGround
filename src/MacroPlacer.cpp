@@ -5,6 +5,7 @@
 #include <numbers>
 #include <limits>
 #include <map>
+#include <QApplication>
 
 #include "SDPInstance.h"
 #include "SDPSolverCPU.h"
@@ -12,6 +13,9 @@
 #include "MacroPlacer.h"
 #include "Painter.h"
 #include "Util.h"
+
+extern int    cmd_argc;
+extern char** cmd_argv; 
 
 namespace macroplacer
 {
@@ -165,6 +169,8 @@ MacroPlacer::updateWL()
 void
 MacroPlacer::run()
 {
+  prepareVisualization();
+
   auto laplacian_start = getChronoNow();
 
   computeFixedInfo();
@@ -413,16 +419,25 @@ MacroPlacer::solveSDP(
   return x_and_y;
 }
 
-int
-MacroPlacer::show(int& argc, char* argv[])
+void
+MacroPlacer::prepareVisualization()
 {
-  QApplication app(argc, argv);
-  QSize size = app.screens()[0]->size();
-  painter_ = std::make_shared<Painter>(size, Qt::darkGray, coreUx_, coreUy_, coreLx_, coreLy_, totalWL_);
-  painter_->setQRect( macro_ptrs_ );
-  painter_->setNetlist( net_ptrs_ );
+  qapp_ = std::make_unique<QApplication>(cmd_argc, cmd_argv);
+
+  QSize size = qapp_->screens()[0]->size();
+
+  painter_ = std::make_shared<Painter>(
+    size, Qt::darkGray, coreUx_, coreUy_, coreLx_, coreLy_, totalWL_);
+
+  painter_->setMacros(macro_ptrs_);
+  painter_->setNets(net_ptrs_);
+}
+
+int
+MacroPlacer::show()
+{
   painter_->show();
-  return app.exec();
+  return qapp_->exec();
 }
 
 }

@@ -57,6 +57,10 @@ class TargetFunction
 
     int getNumVariable() const;
 
+    float getSumOverlap() const;
+
+    float getHpwl() const;
+
   private:
 
     int num_var_;

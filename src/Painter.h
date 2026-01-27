@@ -6,8 +6,10 @@
 #include <QPainter>
 #include <QColor>
 #include <QScreen>
-#include <unordered_map>
+
 #include <vector>
+#include <filesystem>
+#include <unordered_map>
 
 namespace macroplacer
 {
@@ -22,11 +24,15 @@ class Painter : public QWidget
     // w : window width
     // h : window height
     // color : background color
-    Painter(QSize size, QColor color, int coreUx, int coreUy, int coreLx, int coreLy, int64_t wl);
+    Painter(
+      QSize size, QColor color, int coreUx, int coreUy, int coreLx, int coreLy, int64_t wl);
 
     // Setters
-    void setQRect    (std::vector<Macro*>& macros);
-    void setNetlist  (std::vector<Net*>& nets);
+    void setMacros(std::vector<Macro*>& macros);
+    void setNets(std::vector<Net*>& nets);
+
+    // APIs
+    void saveImage(int iter, float hpwl, float sum_overlap);
 
   protected:
 
@@ -37,14 +43,13 @@ class Painter : public QWidget
 
     void init();
 
-    QSize window_size_;
-    std::vector<QRectF> rect_vector_;
-    std::vector<const Net*> netVector_;
-    std::vector<const Macro*> macro_vector_;
-
     void drawRect(QPainter* painter, QRectF& rect, QColor rectColor = Qt::white, QColor rectLineColor = Qt::black);
-    void drawNet (QPainter* painter, const Net* net);
-    void drawCircle(QPainter* painter, const Macro* macro);
+    void drawNet(QPainter* painter, const Net* net);
+
+    void drawDieRect(float k_scale, QPainter* painter) const;
+    void drawMacro(float k_scale, QPainter* painter, const Macro* macro);
+
+    QSize window_size_;
 
     int coreLx_;
     int coreLy_;
@@ -55,6 +60,11 @@ class Painter : public QWidget
     float scale_;
     float offset_;
     float window_length_;
+
+    std::filesystem::path path_to_save_image_;
+
+    std::vector<Net*>   nets_;
+    std::vector<Macro*> macros_;
 };
 
 }

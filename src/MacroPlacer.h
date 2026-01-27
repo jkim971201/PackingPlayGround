@@ -13,6 +13,8 @@
 
 #include "EigenDef.h"
 
+class QApplication;
+
 namespace macroplacer
 {
 
@@ -35,7 +37,7 @@ class MacroPlacer
 
     void run();
 
-    int show(int& argc, char* argv[]);
+    int show();
 
     // Getters
     std::vector<Macro*>& macros() { return macro_ptrs_; }
@@ -56,6 +58,8 @@ class MacroPlacer
     // MacroPlacer.cpp
     std::pair<double, double> originalToScaled(double x, double y) const;
     std::pair<double, double> scaledToOriginal(double x, double y) const;
+
+    void prepareVisualization();
 
     void updateWL();
     void computeFixedInfo();
@@ -110,6 +114,7 @@ class MacroPlacer
     std::vector<Macro*> movable_;
     std::vector<Macro*> fixed_;
 
+    std::unique_ptr<QApplication> qapp_;
     std::shared_ptr<Painter> painter_;
 
     std::unordered_map<std::string, Macro*> name_to_macro_ptr_;
@@ -128,7 +133,6 @@ class MacroPlacer
     EigenSMatrix L_;      // Full Laplacian
     EigenSMatrix Lmm_;    // Laplacian between movable cells
     EigenSMatrix Lff_;    // Laplacian between fixed   cells
-
 };
 
 }

@@ -4,6 +4,9 @@
 
 using namespace macroplacer;
 
+int    cmd_argc;
+char** cmd_argv;
+
 int main(int argc, char **argv)
 {
   if(argc != 4)
@@ -11,6 +14,9 @@ int main(int argc, char **argv)
     std::cout << "Need 3 input files (.blocks .pl .nets)\n";
     exit(0);
   }
+
+  cmd_argc = argc;
+  cmd_argv = argv;
 
   MacroPlacer mpl;
 
@@ -22,7 +28,7 @@ int main(int argc, char **argv)
 
   mpl.run();
 
-  mpl.show(argc, argv);
+  mpl.show();
 
   return 0;
 }
