@@ -61,8 +61,7 @@ class Macro
     void addPin(Pin* pin);
     void move(int dx, int dy);
 
-    void setTempWidth(float val);
-    void setTempHeight(float val);
+    void setTempShape(float scale, float aspect_ratio);
 
   private:
 

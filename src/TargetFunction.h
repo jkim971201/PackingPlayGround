@@ -32,6 +32,10 @@ class TargetFunction
     // APIs
     // var : {x_vector, y_vector, ... }
 
+    void scaleArea(int phase, int max_phase);
+
+    void setNeedExport(bool flag);
+
     void updatePointAndGetGrad(
       const CudaVector<float>& var,
             CudaVector<float>& grad);
@@ -68,6 +72,8 @@ class TargetFunction
     int num_net_;
     int num_macro_;
     int num_pair_;
+
+    bool need_export_;
 
     bool plot_mode_;
 
@@ -113,15 +119,15 @@ class TargetFunction
     CudaVector<float> d_macro_height_;
 
     CudaVector<float> d_overlap_area_;
-    CudaVector<float> d_overlap_width_;
-    CudaVector<float> d_overlap_height_;
     CudaVector<float> d_overlap_grad_;
 
-    /* Data for Shape gradient computation */
     CudaVector<float> d_min_ratio_;
     CudaVector<float> d_max_ratio_;
     CudaVector<float> d_macro_area_;
+    CudaVector<float> d_macro_area_original_;
 
+    float area_scale_;
+    float sum_macro_area_original_;
     float sum_macro_area_;
 
     // These are constant

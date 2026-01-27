@@ -1,6 +1,8 @@
 #include "Macro.h"
 #include "Pin.h"
 
+#include <cmath>
+
 namespace macroplacer
 {
 
@@ -104,15 +106,11 @@ Macro::setLy(int newLy)
 }
 
 void 
-Macro::setTempWidth(float val)
+Macro::setTempShape(float scale, float aspect_ratio)
 {
-  temp_w_ = val;
-}
-
-void 
-Macro::setTempHeight(float val)
-{
-  temp_h_ = val;
+  float temp_area = static_cast<float>(area_) * scale;
+  temp_w_ = std::sqrt(temp_area / aspect_ratio);
+  temp_h_ = std::sqrt(temp_area * aspect_ratio);
 }
 
 }

@@ -321,18 +321,19 @@ TargetFunction::TargetFunction(
   std::vector<Net*>& nets,
   std::vector<Pin*>& pins)
 {
-  painter_   = painter;
-  x_min_     = x_min;
-  y_min_     = y_min;
-  x_max_     = x_max;
-  y_max_     = y_max;
-  num_net_   = nets.size();
-  num_pin_   = pins.size();
-  num_macro_ = movable_macros.size();
-  num_pair_  = num_macro_ * (num_macro_ - 1) / 2;
-  num_var_   = 3 * num_macro_; // {x, y, aspect_ratio}
-
-  lambda_    = 5.0f;
+  painter_     = painter;
+  x_min_       = x_min;
+  y_min_       = y_min;
+  x_max_       = x_max;
+  y_max_       = y_max;
+  num_net_     = nets.size();
+  num_pin_     = pins.size();
+  num_macro_   = movable_macros.size();
+  num_pair_    = num_macro_ * (num_macro_ - 1) / 2;
+  num_var_     = 3 * num_macro_; // {x, y, aspect_ratio}
+  need_export_ = true;
+  area_scale_  = 1.0f;
+  lambda_      = 2.0f;
 
   h_solution_.resize(num_var_); 
   // We don't want to store these data permanently
@@ -389,7 +390,8 @@ TargetFunction::TargetFunction(
     h_pin_cy[pin_id] = pin_ptr->getCy();
   }
 
-  sum_macro_area_ = std::accumulate(h_macro_area.begin(), h_macro_area.end(), 0.0f);
+  sum_macro_area_original_ 
+    = std::accumulate(h_macro_area.begin(), h_macro_area.end(), 0.0f);
 
   // Initialize CUDA Kernel
   // wirelength
@@ -431,6 +433,7 @@ TargetFunction::TargetFunction(
   d_macro_width_.resize(num_macro_);
   d_macro_height_.resize(num_macro_);
   d_macro_area_.resize(num_macro_);
+  d_macro_area_original_.resize(num_macro_);
   d_index_pair_.resize(num_pair_);
 
   d_min_ratio_.resize(num_macro_);
@@ -439,13 +442,27 @@ TargetFunction::TargetFunction(
   d_overlap_area_.resize(num_pair_);
   d_overlap_grad_.resize(num_var_);
 
-  d_macro_width_  = h_macro_width;
-  d_macro_height_ = h_macro_height;
-  d_macro_area_   = h_macro_area;
-  d_index_pair_   = h_index_pair;
+  d_macro_width_         = h_macro_width;
+  d_macro_height_        = h_macro_height;
+  d_index_pair_          = h_index_pair;
+  d_macro_area_original_ = h_macro_area;
 
   d_min_ratio_  = h_min_ratio;
   d_max_ratio_  = h_max_ratio;
+}
+
+void
+TargetFunction::setNeedExport(bool flag)
+{
+  need_export_ = flag;
+}
+
+void
+TargetFunction::scaleArea(int phase, int max_phase)
+{
+  area_scale_ = static_cast<float>(phase) / static_cast<float>(max_phase);
+  vectorMulScalar(area_scale_, d_macro_area_original_, d_macro_area_);
+  sum_macro_area_ = sum_macro_area_original_ * area_scale_ * area_scale_;
 }
 
 void
@@ -518,7 +535,7 @@ TargetFunction::updateParameters()
 void
 TargetFunction::printProgress(int iter) const
 {
-  if(iter == 0 || iter % 50 == 0)
+  if(iter == 0 || iter % 1000 == 0)
   {
     printf("Iter: %4d HPWL: %8f SumOverlap: %8f\n", 
       iter, hpwl_, sum_overlap_area_);
@@ -533,7 +550,8 @@ TargetFunction::solveBgnCbk()
 void 
 TargetFunction::solveEndCbk(int iter, double runtime, const CudaVector<float>& macro_pos)
 {
-  exportToDb(macro_pos);
+  if(need_export_ == true)
+    exportToDb(macro_pos);
 }
 
 void 
@@ -692,8 +710,10 @@ TargetFunction::exportToDb(const CudaVector<float>& d_solution)
     auto macro_ptr = macro_ptrs_[macro_id];
     float macro_cx = h_solution_[macro_id];
     float macro_cy = h_solution_[macro_id + num_macro_];
+    float aspect_ratio = h_solution_[macro_id + 2 * num_macro_];
     macro_ptr->setCx(macro_cx);
     macro_ptr->setCy(macro_cy);
+    macro_ptr->setTempShape(area_scale_, aspect_ratio);
   }
 }
 

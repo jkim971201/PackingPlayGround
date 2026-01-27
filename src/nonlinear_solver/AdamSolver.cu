@@ -44,7 +44,7 @@ __global__ void updateDirectionKernelAdam(
 AdamSolver::AdamSolver(std::shared_ptr<TargetFunction> problem)
   : SolverBase(problem)
 {
-  alpha_   = 1e-2; // learning_rate
+  alpha_   = 1e-3; // learning_rate
   beta1_   = 0.9;
   beta2_   = 0.999;
   beta1k_  = beta1_;
@@ -144,7 +144,7 @@ AdamSolver::solve()
   auto solve_start_chrono = getChronoNow();
 
   int iter = 0;
-  int max_opt_iter = 400;
+  int max_opt_iter = 1000;
   for(; iter < max_opt_iter; iter++)
   {
     target_function_->iterBgnCbk(iter);

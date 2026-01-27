@@ -139,8 +139,8 @@ Painter::drawMacro(float k_scale, QPainter* painter, const Macro* macro)
 
   float lx = macro->getLx() * k_scale;
   float ly = macro->getLy() * k_scale;
-  float dx = macro->getWidth() * k_scale;
-  float dy = macro->getHeight() * k_scale;
+  float dx = macro->getTempWidth() * k_scale;
+  float dy = macro->getTempHeight() * k_scale;
   QRectF macro_rect = QRectF(lx, ly, dx, dy);
 
   drawRect(painter, macro_rect, Qt::gray, Qt::black);

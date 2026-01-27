@@ -28,6 +28,7 @@ MacroPlacer::refineMacroPlace()
   const int max_phase = 100;
   for(int phase = 0; phase < max_phase; phase++)
   {
+    function->scaleArea(phase, max_phase);
     adam_solver->solve();
     //painter_->saveImage(phase, function->getHpwl(), function->getSumOverlap());
   }
