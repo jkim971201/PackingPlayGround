@@ -90,7 +90,7 @@ AdamSolver::moveForward(
     d_cur_direction.data(),
     d_new_var.data() );
 
-  target_function_->clipToChipBoundary(d_new_var);
+  target_function_->clipToFeasibleSolution(d_new_var);
 }
 
 void

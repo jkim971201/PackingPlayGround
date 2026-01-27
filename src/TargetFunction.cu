@@ -56,6 +56,37 @@ __global__ void clipToChipBoundaryKernel(
   }
 }
 
+__global__ void clipToFeasibleRatioKernel(
+  const int    num_macro,
+  const float* min_ratio,
+  const float* max_ratio,
+        float* cur_ratio)
+{
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if(i < num_macro)
+  {
+    float new_ratio = min(max(cur_ratio[i], min_ratio[i]), max_ratio[i]);
+    cur_ratio[i] = new_ratio;
+  }
+}
+
+__global__ void updateWidthAndHeightKernel(
+  const int    num_macro,
+  const float* aspect_ratio,
+  const float* macro_area,
+        float* macro_width,
+        float* macro_height)
+{
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if(i < num_macro)
+  {
+    float ratio_i = aspect_ratio[i];
+    float area_i = macro_area[i];
+    macro_width[i]  = sqrt(area_i / ratio_i);
+    macro_height[i] = sqrt(area_i * ratio_i);
+  }
+}
+
 __global__ void updatePinCoordinateKernel(
   const int    num_pin, 
   const int*   pin2cell,
@@ -299,11 +330,11 @@ TargetFunction::TargetFunction(
   num_pin_   = pins.size();
   num_macro_ = movable_macros.size();
   num_pair_  = num_macro_ * (num_macro_ - 1) / 2;
-  num_var_   = 2 * num_macro_;
+  num_var_   = 3 * num_macro_; // {x, y, aspect_ratio}
 
   lambda_    = 5.0f;
 
-  h_macro_pos_.resize(num_var_);
+  h_solution_.resize(num_var_); 
   // We don't want to store these data permanently
   std::vector<int> h_pin2net(num_pin_);
   std::vector<int> h_pin2macro(num_pin_, -1);
@@ -311,6 +342,8 @@ TargetFunction::TargetFunction(
   std::vector<float> h_macro_width(num_macro_);
   std::vector<float> h_macro_height(num_macro_);
   std::vector<float> h_macro_area(num_macro_);
+  std::vector<float> h_min_ratio(num_macro_);
+  std::vector<float> h_max_ratio(num_macro_);
   std::vector<int> h_index_pair;
   h_index_pair.reserve(num_pair_);
 
@@ -320,13 +353,7 @@ TargetFunction::TargetFunction(
     int net_id = net_ptr->id();
     h_net_start[net_id] = net_pins[0].id();
     for(auto& pin : net_pins)
-    {
       h_pin2net[pin.id()] = net_id;
-      //printf("NetID: %d PinID: %d", net_id, pin.id());
-      //if(pin.getMacro()->isTerminal() == true)
-      //  printf(" TERMINAL");
-      //printf("\n");
-    }
   }
 
   h_net_start[num_net_] = num_pin_;
@@ -336,16 +363,20 @@ TargetFunction::TargetFunction(
   {
     auto macro_ptr = movable_macros[macro_id];
     macro_ptrs_.push_back(macro_ptr);
-    h_macro_pos_[macro_id] = macro_ptr->getCx();
-    h_macro_pos_[macro_id + num_macro_] = macro_ptr->getCy();
+    h_solution_[macro_id] = macro_ptr->getCx();
+    h_solution_[macro_id + num_macro_] = macro_ptr->getCy();
     h_macro_width[macro_id] = macro_ptr->getWidth();
     h_macro_height[macro_id] = macro_ptr->getHeight();
     h_macro_area[macro_id] = macro_ptr->getOriginalArea();
+    h_min_ratio[macro_id] = macro_ptr->getMinAR();
+    h_max_ratio[macro_id] = macro_ptr->getMaxAR();
     for(auto& pin : macro_ptr->getPins())
       h_pin2macro[pin->id()] = macro_id;
 
     for(int macro_id2 = macro_id + 1; macro_id2 < num_macro_; macro_id2++)
       h_index_pair.push_back(macro_id + macro_id2 * num_macro_);
+
+    h_solution_[macro_id + 2 * num_macro_] = macro_ptr->getTempRatio();
   }
 
   std::vector<float> h_pin_cx(num_pin_);
@@ -393,26 +424,35 @@ TargetFunction::TargetFunction(
   d_pin2macro_ = h_pin2macro;
   d_net_start_ = h_net_start;
 
+  d_pin_x_ = h_pin_cx;
+  d_pin_y_ = h_pin_cy;
+
   // overlap
   d_macro_width_.resize(num_macro_);
   d_macro_height_.resize(num_macro_);
+  d_macro_area_.resize(num_macro_);
   d_index_pair_.resize(num_pair_);
 
-  d_overlap_area_.resize(num_pair_);
+  d_min_ratio_.resize(num_macro_);
+  d_max_ratio_.resize(num_macro_);
 
+  d_overlap_area_.resize(num_pair_);
   d_overlap_grad_.resize(num_var_);
 
   d_macro_width_  = h_macro_width;
   d_macro_height_ = h_macro_height;
+  d_macro_area_   = h_macro_area;
   d_index_pair_   = h_index_pair;
 
-  d_pin_x_ = h_pin_cx;
-  d_pin_y_ = h_pin_cy;
+  d_min_ratio_  = h_min_ratio;
+  d_max_ratio_  = h_max_ratio;
 }
 
 void
 TargetFunction::updatePointAndGetGrad(const CudaVector<float>& var, CudaVector<float>& grad)
 {
+  updateWidthAndHeight(var);
+
   // For WireLength SubGrad
   computeWirelengthSubGrad(var, d_wl_grad_);
 
@@ -422,20 +462,30 @@ TargetFunction::updatePointAndGetGrad(const CudaVector<float>& var, CudaVector<f
   vectorAdd(1.0f, lambda_, d_wl_grad_, d_overlap_grad_, grad);
 }
 
+void
+TargetFunction::updateWidthAndHeight(const CudaVector<float>& var)
+{
+  int num_thread = 64;
+  int num_block_cell = (num_macro_ - 1 + num_thread) / num_thread;
+
+  updateWidthAndHeightKernel<<<num_block_cell, num_thread>>>(
+    num_macro_,
+    var.data() + 2 * num_macro_, /* current aspect_ratio */
+    d_macro_area_.data(),
+    d_macro_width_.data(),
+    d_macro_height_.data());
+}
+
 void 
 TargetFunction::getInitialGrad(
   const CudaVector<float>& initial_var,
         CudaVector<float>& initial_grad)
 {
-  computeWirelengthSubGrad(initial_var, d_wl_grad_);
-
-  computeOverlapSubGrad(initial_var, d_overlap_grad_);
-
-  vectorAdd(1.0f, lambda_, d_wl_grad_, d_overlap_grad_, initial_grad);
+  updatePointAndGetGrad(initial_var, initial_grad);
 }
 
 void 
-TargetFunction::clipToChipBoundary(CudaVector<float>& var)
+TargetFunction::clipToFeasibleSolution(CudaVector<float>& var)
 {
   int num_thread = 64;
   int num_block_cell = (num_macro_ - 1 + num_thread) / num_thread;
@@ -450,6 +500,12 @@ TargetFunction::clipToChipBoundary(CudaVector<float>& var)
     d_macro_height_.data(),
     var.data(),
     var.data() + num_macro_);
+
+  clipToFeasibleRatioKernel<<<num_block_cell, num_thread>>>(
+    num_macro_,
+    d_min_ratio_.data(),
+    d_max_ratio_.data(),
+    var.data() + 2 * num_macro_);
 }
 
 void 
@@ -528,7 +584,8 @@ TargetFunction::computeWirelengthSubGrad(const CudaVector<float>& pos, CudaVecto
   int num_block_pin = (num_pin_ + num_thread) / num_thread; 
   int num_block_net = (num_net_ + num_thread) / num_thread; 
 
-  wl_grad.fillZero();
+  wl_grad.fillZero(); 
+  // we regard wirelength grad of ratio (aWL/ar) as zero
 
   // Step #1: Update PinCoordinate
   updatePinCoordinateKernel<<<num_block_pin, num_thread>>>(
@@ -622,19 +679,19 @@ void
 TargetFunction::exportToSolver(CudaVector<float>& var_from_solver)
 {
   // Host to Device
-  var_from_solver = h_macro_pos_;
+  var_from_solver = h_solution_;
 }
 
 void
-TargetFunction::exportToDb(const CudaVector<float>& macro_pos)
+TargetFunction::exportToDb(const CudaVector<float>& d_solution)
 {
-  thrust::copy(macro_pos.begin(), macro_pos.end(), h_macro_pos_.begin());
+  thrust::copy(d_solution.begin(), d_solution.end(), h_solution_.begin());
 
   for(int macro_id = 0; macro_id < num_macro_; macro_id++)
   {
     auto macro_ptr = macro_ptrs_[macro_id];
-    float macro_cx = h_macro_pos_[macro_id];
-    float macro_cy = h_macro_pos_[macro_id + num_macro_];
+    float macro_cx = h_solution_[macro_id];
+    float macro_cy = h_solution_[macro_id + num_macro_];
     macro_ptr->setCx(macro_cx);
     macro_ptr->setCy(macro_cy);
   }

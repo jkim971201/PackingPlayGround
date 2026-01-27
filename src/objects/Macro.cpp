@@ -5,22 +5,26 @@ namespace macroplacer
 {
 
 // for HARD Block
-Macro::Macro(const std::string& name, int lx, int ly, int w, int h, bool is_term)
+Macro::Macro(
+  const std::string& name, int lx, int ly, int w, int h, bool is_term)
   : lx_(lx), ly_(ly), w_ (w), h_ (h), name_(name), is_terminal_(is_term)
 {
   area_ = w_ * h_;
   temp_w_ = w_;
   temp_h_ = h_;
   is_soft_block_ = false;
+  min_ar_ = static_cast<float>(h_) / static_cast<float>(w_);
+  max_ar_ = static_cast<float>(h_) / static_cast<float>(w_);
 }
 
 // for SOFT Block
-Macro::Macro(const std::string& name, int lx, int ly, int w, int h, int area, bool is_term)
-  : lx_(lx), ly_(ly), w_(w), h_(h), name_(name), area_(area)
+Macro::Macro(
+  const std::string& name, int lx, int ly, int w, int h, int area, float min_ar, float max_ar)
+  : lx_(lx), ly_(ly), w_(w), h_(h), name_(name), area_(area), min_ar_(min_ar), max_ar_(max_ar)
 {
   temp_w_ = 0.0f;
   temp_h_ = 0.0f;
-  is_terminal_ = is_term;
+  is_terminal_ = false;
   is_soft_block_ = true;
 }
 
@@ -38,6 +42,7 @@ int Macro::getOriginalArea() const { return area_; }
 float Macro::getMinAR() const { return min_ar_; }
 float Macro::getMaxAR() const { return max_ar_; }
 
+float Macro::getTempRatio() const { return temp_h_ / temp_w_; }
 float Macro::getTempWidth() const { return temp_w_; }
 float Macro::getTempHeight() const { return temp_h_; }
 float Macro::getTempArea() const { return temp_w_ * temp_h_; }

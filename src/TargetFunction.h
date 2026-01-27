@@ -40,7 +40,7 @@ class TargetFunction
       const CudaVector<float>& initial_var,
             CudaVector<float>& initial_grad);
 
-    void clipToChipBoundary(CudaVector<float>& var);
+    void clipToFeasibleSolution(CudaVector<float>& var);
 
     void exportToSolver(CudaVector<float>& var_from_solver); 
     // This will be used only to get initial solution
@@ -81,7 +81,7 @@ class TargetFunction
     float hpwl_;
     float sum_overlap_area_;
 
-    std::vector<float> h_macro_pos_;
+    std::vector<float> h_solution_;
 
     std::vector<Macro*> macro_ptrs_;
 
@@ -113,11 +113,14 @@ class TargetFunction
     CudaVector<float> d_macro_height_;
 
     CudaVector<float> d_overlap_area_;
+    CudaVector<float> d_overlap_width_;
+    CudaVector<float> d_overlap_height_;
     CudaVector<float> d_overlap_grad_;
 
     /* Data for Shape gradient computation */
-    CudaVector<float> d_width_;
-    CudaVector<float> d_area_;
+    CudaVector<float> d_min_ratio_;
+    CudaVector<float> d_max_ratio_;
+    CudaVector<float> d_macro_area_;
 
     float sum_macro_area_;
 
@@ -126,6 +129,8 @@ class TargetFunction
     CudaVector<int>   d_pin2macro_;
     CudaVector<int>   d_net_start_;
     CudaVector<float> d_net_weight_;
+
+    void updateWidthAndHeight(const CudaVector<float>& var);
 
     void computeWirelengthSubGrad(
       const CudaVector<float>& var,
