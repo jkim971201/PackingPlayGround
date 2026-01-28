@@ -14,14 +14,10 @@ class Macro
   public:
 
     // for HARD Block
-    Macro(
-      const std::string& name, 
-      int lx, int ly, int w, int h, bool is_terminal);
+    Macro(const std::string& name, int w, int h, bool is_terminal);
 
     // for SOFT Block
-    Macro(
-      const std::string& name, 
-      int lx, int ly, int w, int h, int area, float min_r, float max_r);
+    Macro(const std::string& name, int area, float min_r, float max_r);
 
     // Getters
     int getLx() const; 

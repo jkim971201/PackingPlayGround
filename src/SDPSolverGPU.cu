@@ -346,8 +346,8 @@ SDPSolverGPU::findTargetRank()
   int num_constr = m_ + p_;
   int optimal_rank 
     = static_cast<int>(std::sqrt(2 * num_constr) + 1.0);
-  //target_rank_ = std::min(optimal_rank, n_);
-  target_rank_ = std::sqrt(num_constr);
+  target_rank_ = std::min(optimal_rank, n_);
+  //target_rank_ = std::sqrt(num_constr);
   //target_rank_ = 2;
 }
 
@@ -902,7 +902,7 @@ SDPSolverGPU::solveALM()
   // Compute Final Solution : X = RR^T
   computeUVT(d_R_, d_R_, d_X_);
 
-  //printDenseMatrixRowMajor(d_X_, "FinalX");
+  printDenseMatrixRowMajor(d_X_, "FinalX");
 
 //  std::vector<double> h_const(d_ARRT_.size());
 //  thrust::copy(d_ARRT_.begin(), d_ARRT_.end(), h_const.begin());

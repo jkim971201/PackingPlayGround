@@ -7,9 +7,8 @@ namespace macroplacer
 {
 
 // for HARD Block
-Macro::Macro(
-  const std::string& name, int lx, int ly, int w, int h, bool is_term)
-  : lx_(lx), ly_(ly), w_ (w), h_ (h), name_(name), is_terminal_(is_term)
+Macro::Macro(const std::string& name, int w, int h, bool is_term)
+  : lx_(0), ly_(0), w_(w), h_(h), name_(name), is_terminal_(is_term)
 {
   area_ = w_ * h_;
   temp_w_ = w_;
@@ -20,9 +19,8 @@ Macro::Macro(
 }
 
 // for SOFT Block
-Macro::Macro(
-  const std::string& name, int lx, int ly, int w, int h, int area, float min_ar, float max_ar)
-  : lx_(lx), ly_(ly), w_(w), h_(h), name_(name), area_(area), min_ar_(min_ar), max_ar_(max_ar)
+Macro::Macro(const std::string& name, int area, float min_ar, float max_ar)
+  : lx_(0), ly_(0), w_(0), h_(0), name_(name), area_(area), min_ar_(min_ar), max_ar_(max_ar)
 {
   temp_w_ = 0.0f;
   temp_h_ = 0.0f;

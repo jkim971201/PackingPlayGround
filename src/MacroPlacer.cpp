@@ -195,17 +195,21 @@ MacroPlacer::run()
   int movable_id = 0;
   for(auto& macro : movable_)
   {
-    auto [new_cx, new_cy] 
-      = scaledToOriginal(solution[0][movable_id], solution[1][movable_id]);
-
-    int dx = static_cast<int>(new_cx) - macro->getCx();
-    int dy = static_cast<int>(new_cy) - macro->getCy();
-    macro->move(dx, dy);
+    double x_sdp = solution[0][movable_id];
+    double y_sdp = solution[1][movable_id];
+    auto [new_cx, new_cy] = scaledToOriginal(x_sdp, y_sdp);
+    macro->setCx(new_cx);
+    macro->setCy(new_cy);
     movable_id++;
   }
 
+  auto refine_start = getChronoNow();
+
   refineMacroPlace();
-  printf("Refine          finished\n");
+
+  const double refine_time = evalTime(refine_start);
+
+  printf("Refine          finished (takes %5.2f s)\n", refine_time);
 
   updateWL();
 

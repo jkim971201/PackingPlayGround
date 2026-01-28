@@ -117,7 +117,18 @@ MacroPlacer::readBlock(const std::filesystem::path& block_file)
       int h = y2 - y1;
 
       // lx ly is unknown in the .blocks file
-      macro_insts_.emplace_back(macro_name, 0, 0, w, h, false);
+      macro_insts_.emplace_back(macro_name, w, h, false);
+    }
+    else if(tokens.size() == 5)
+    {
+      std::string macro_name = tokens[0];
+      std::string soft_rect = tokens[1];
+      assert(soft_rect == "softrectangular");
+
+      int area = std::stoi(tokens[2]);
+      float min_aspect_ratio = std::stof(tokens[3]);
+      float max_aspect_ratio = std::stof(tokens[4]);
+      macro_insts_.emplace_back(macro_name, area, min_aspect_ratio, max_aspect_ratio);
     }
     else if(tokens.size() == 2)
     {
@@ -125,7 +136,7 @@ MacroPlacer::readBlock(const std::filesystem::path& block_file)
       assert(tokens[1] == "terminal");
 
       // lx ly is unknown in the .blocks file
-      macro_insts_.emplace_back(terminal_name, 0, 0, 0, 0, true);
+      macro_insts_.emplace_back(terminal_name, 0, 0, true);
     }
   }
 

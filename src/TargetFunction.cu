@@ -573,7 +573,7 @@ TargetFunction::checkConvergence() const
 {
   float area_total = sum_macro_area_;
   float area_overlap = sum_overlap_area_;
-  float thr_coeff = 0.01;
+  float thr_coeff = 0.001;
   return area_overlap < area_total * thr_coeff;
 }
 
