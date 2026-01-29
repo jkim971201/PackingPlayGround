@@ -324,4 +324,7 @@ template double computeVectorSum(const CudaVector<double>& a);
 template float  computeVectorMax(const CudaVector<float>& a);
 template double computeVectorMax(const CudaVector<double>& a);
 
+template void printVector(const CudaVector<float>& d_vector, const std::string& title);
+template void printVector(const CudaVector<double>& d_vector, const std::string& title);
+
 }

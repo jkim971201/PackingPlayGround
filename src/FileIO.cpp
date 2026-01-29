@@ -77,10 +77,7 @@ MacroPlacer::readBlock(const std::filesystem::path& block_file)
       continue;
 
     if(tokens[0] == "NumSoftRectangularBlocks")
-    {
       num_soft_rect = std::stoi(tokens[2]);
-      assert(num_soft_rect == 0);
-    }
     else if(tokens[0] == "NumHardRectilinearBlocks")
       num_hard_rect = std::stoi(tokens[2]);
     else if(tokens[0] == "NumTerminals")
@@ -147,7 +144,7 @@ MacroPlacer::readBlock(const std::filesystem::path& block_file)
     name_to_macro_ptr_[name] = &inst;
   }
 
-  assert(macro_insts_.size() == num_hard_rect + num_terminals);
+  assert(macro_insts_.size() == num_hard_rect + num_soft_rect+ num_terminals);
   //printf("NumSoft : %d\n", num_soft_rect);
   //printf("NumHard : %d\n", num_hard_rect);
 
@@ -361,13 +358,21 @@ MacroPlacer::readFile(
 
   initCore();
 
+  double sum_area = 0.0;
   for(auto macro_ptr : macro_ptrs_)
   {
+    sum_area += macro_ptr->getOriginalArea();
     if(macro_ptr->isTerminal() == true)
       fixed_.push_back(macro_ptr);
     else 
       movable_.push_back(macro_ptr);
   }
+
+  double die_area 
+    = static_cast<double>(coreUx_ - coreLx_) *
+      static_cast<double>(coreUy_ - coreLy_);
+
+  double util = sum_area / die_area * 100;
 
   printf("=====================================\n");
   printf("DB Info\n");
@@ -377,6 +382,7 @@ MacroPlacer::readFile(
   printf("NumTerm : %d\n", num_terminals_);
   printf("NumNet  : %d\n", net_ptrs_.size());
   printf("NumPin  : %d\n", pin_ptrs_.size());
+  printf("Util    : %4.1f%%\n", util);
   printf("Core (%d, %d) - (%d, %d)\n", coreLx_, coreLy_, coreUx_, coreUy_);
   printf("Initial HPWL: %ld\n", totalWL_);
   printf("=====================================\n");

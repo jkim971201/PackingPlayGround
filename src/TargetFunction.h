@@ -32,7 +32,7 @@ class TargetFunction
     // APIs
     // var : {x_vector, y_vector, ... }
 
-    void scaleArea(int phase, int max_phase);
+    void scaleArea(float scale);
 
     void setNeedExport(bool flag);
 

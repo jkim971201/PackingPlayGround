@@ -16,10 +16,11 @@ __device__ inline float getXInsideChip(
   const float x_max)
 {
   float new_cx = cell_cx;
-  if(cell_cx - cell_width / 2 < x_min)
-    new_cx = x_min + cell_width / 2;
-  if(cell_cx + cell_width / 2 > x_max)
-    new_cx = x_max - cell_width / 2;
+
+  if(cell_cx - cell_width / 2.0f < x_min)
+    new_cx = x_min + cell_width / 2.0f;
+  if(cell_cx + cell_width / 2.0f > x_max)
+    new_cx = x_max - cell_width / 2.0f;
   return new_cx;
 }
 
@@ -253,11 +254,14 @@ __global__ void computeOverlapSubGradKernel(
   const int*   pair_list,
   const float* macro_cx,
   const float* macro_cy,
+  const float* macro_ar,
   const float* macro_width,
   const float* macro_height,
+  const float* macro_area,
         float* overlap_area,
         float* overlap_grad_x,
-        float* overlap_grad_y)
+        float* overlap_grad_y,
+        float* overlap_grad_r)
 {
   const int pair_id = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -274,8 +278,9 @@ __global__ void computeOverlapSubGradKernel(
     float cy2 = macro_cy[macro_id2];
 
     float width1  = macro_width[macro_id1];
-    float width2  = macro_width[macro_id2];
     float height1 = macro_height[macro_id1];
+
+    float width2  = macro_width[macro_id2];
     float height2 = macro_height[macro_id2];
 
     float x_min1 = cx1 - width1  / 2.0;
@@ -310,6 +315,23 @@ __global__ void computeOverlapSubGradKernel(
 
       atomicAdd(&(overlap_grad_y[macro_id1]), y_sign1 * overlap_length_y);
       atomicAdd(&(overlap_grad_y[macro_id2]), y_sign2 * overlap_length_y);
+
+      float ratio1      = macro_ar[macro_id1];
+      float macro_area1 = macro_area[macro_id1];
+
+      float ratio2      = macro_ar[macro_id2];
+      float macro_area2 = macro_area[macro_id2];
+
+      float r_grad1 
+        = overlap_length_x * 0.5f * sqrt(macro_area1 / ratio1)
+        + overlap_length_y * 0.5f * sqrt(macro_area1 / ratio1) / ratio1;
+
+      float r_grad2
+        = overlap_length_x * 0.5f * sqrt(macro_area2 / ratio2)
+        + overlap_length_y * 0.5f * sqrt(macro_area2 / ratio2) / ratio2;
+
+      atomicAdd(&(overlap_grad_r[macro_id1]), -r_grad1);
+      atomicAdd(&(overlap_grad_r[macro_id2]), -r_grad2);
     }
   }
 }
@@ -368,7 +390,7 @@ TargetFunction::TargetFunction(
     h_solution_[macro_id + num_macro_] = macro_ptr->getCy();
     h_macro_width[macro_id] = macro_ptr->getWidth();
     h_macro_height[macro_id] = macro_ptr->getHeight();
-    h_macro_area[macro_id] = macro_ptr->getOriginalArea();
+    h_macro_area[macro_id] = static_cast<float>(macro_ptr->getOriginalArea());
     h_min_ratio[macro_id] = macro_ptr->getMinAR();
     h_max_ratio[macro_id] = macro_ptr->getMaxAR();
     for(auto& pin : macro_ptr->getPins())
@@ -377,7 +399,13 @@ TargetFunction::TargetFunction(
     for(int macro_id2 = macro_id + 1; macro_id2 < num_macro_; macro_id2++)
       h_index_pair.push_back(macro_id + macro_id2 * num_macro_);
 
-    h_solution_[macro_id + 2 * num_macro_] = macro_ptr->getTempRatio();
+    if(macro_ptr->isSoftBlock() == true)
+    {
+      // Start from 1.0f when softblock
+      h_solution_[macro_id + 2 * num_macro_] = 1.0f;
+    }
+    else
+      h_solution_[macro_id + 2 * num_macro_] = macro_ptr->getTempRatio();
   }
 
   std::vector<float> h_pin_cx(num_pin_);
@@ -392,6 +420,8 @@ TargetFunction::TargetFunction(
 
   sum_macro_area_original_ 
     = std::accumulate(h_macro_area.begin(), h_macro_area.end(), 0.0f);
+
+  sum_macro_area_ = sum_macro_area_original_;
 
   // Initialize CUDA Kernel
   // wirelength
@@ -445,6 +475,7 @@ TargetFunction::TargetFunction(
   d_macro_width_         = h_macro_width;
   d_macro_height_        = h_macro_height;
   d_index_pair_          = h_index_pair;
+  d_macro_area_          = h_macro_area;
   d_macro_area_original_ = h_macro_area;
 
   d_min_ratio_  = h_min_ratio;
@@ -458,9 +489,9 @@ TargetFunction::setNeedExport(bool flag)
 }
 
 void
-TargetFunction::scaleArea(int phase, int max_phase)
+TargetFunction::scaleArea(float scale)
 {
-  area_scale_ = static_cast<float>(phase) / static_cast<float>(max_phase);
+  area_scale_ = scale;
   vectorMulScalar(area_scale_, d_macro_area_original_, d_macro_area_);
   sum_macro_area_ = sum_macro_area_original_ * area_scale_ * area_scale_;
 }
@@ -652,7 +683,7 @@ TargetFunction::computeWirelengthSubGrad(const CudaVector<float>& pos, CudaVecto
 
 void 
 TargetFunction::computeOverlapSubGrad(
-  const CudaVector<float>& pos, 
+  const CudaVector<float>& var, 
         CudaVector<float>& overlap_grad)
 {
   int num_thread = 64;
@@ -665,13 +696,16 @@ TargetFunction::computeOverlapSubGrad(
     num_pair_,
     num_macro_,
     d_index_pair_.data(),
-    pos.data(),              /* cur_x */
-    pos.data() + num_macro_, /* cur_y */
+    var.data(),                  /* cur_x */
+    var.data() + 1 * num_macro_, /* cur_y */
+    var.data() + 2 * num_macro_, /* cur_r */
     d_macro_width_.data(),
     d_macro_height_.data(),
+    d_macro_area_.data(),
     d_overlap_area_.data(),
-    overlap_grad.data(),               /* overlap_grad_x */
-    overlap_grad.data() + num_macro_); /* overlap_grad_y */
+    overlap_grad.data(),                   /* overlap_grad_x */
+    overlap_grad.data() + 1 * num_macro_,  /* overlap_grad_y */
+    overlap_grad.data() + 2 * num_macro_); /* overlap_grad_r */
 }
 
 float

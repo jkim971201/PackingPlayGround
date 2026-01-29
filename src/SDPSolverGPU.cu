@@ -902,7 +902,7 @@ SDPSolverGPU::solveALM()
   // Compute Final Solution : X = RR^T
   computeUVT(d_R_, d_R_, d_X_);
 
-  printDenseMatrixRowMajor(d_X_, "FinalX");
+  //printDenseMatrixRowMajor(d_X_, "FinalX");
 
 //  std::vector<double> h_const(d_ARRT_.size());
 //  thrust::copy(d_ARRT_.begin(), d_ARRT_.end(), h_const.begin());

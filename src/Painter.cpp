@@ -137,10 +137,10 @@ Painter::drawMacro(float k_scale, QPainter* painter, const Macro* macro)
 
   //painter->drawEllipse(QPointF(cx, cy), radius, radius);
 
-  float lx = macro->getLx() * k_scale;
-  float ly = macro->getLy() * k_scale;
   float dx = macro->getTempWidth() * k_scale;
   float dy = macro->getTempHeight() * k_scale;
+  float lx = cx - dx / 2.0f;
+  float ly = cy - dy / 2.0f;
   QRectF macro_rect = QRectF(lx, ly, dx, dy);
 
   drawRect(painter, macro_rect, Qt::gray, Qt::black);
