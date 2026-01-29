@@ -254,7 +254,7 @@ __global__ void computeOverlapSubGradKernel(
   const int*   pair_list,
   const float* macro_cx,
   const float* macro_cy,
-  const float* macro_ar,
+  const float* macro_aspect_ratio,
   const float* macro_width,
   const float* macro_height,
   const float* macro_area,
@@ -310,25 +310,25 @@ __global__ void computeOverlapSubGradKernel(
       float y_sign1 = cy1 < cy2 ? -1.0f : +1.0f;
       float y_sign2 = -y_sign1;
 
-      atomicAdd(&(overlap_grad_x[macro_id1]), x_sign1 * overlap_length_x);
-      atomicAdd(&(overlap_grad_x[macro_id2]), x_sign2 * overlap_length_x);
+      atomicAdd(&(overlap_grad_x[macro_id1]), x_sign1 * overlap_length_y);
+      atomicAdd(&(overlap_grad_x[macro_id2]), x_sign2 * overlap_length_y);
 
-      atomicAdd(&(overlap_grad_y[macro_id1]), y_sign1 * overlap_length_y);
-      atomicAdd(&(overlap_grad_y[macro_id2]), y_sign2 * overlap_length_y);
+      atomicAdd(&(overlap_grad_y[macro_id1]), y_sign1 * overlap_length_x);
+      atomicAdd(&(overlap_grad_y[macro_id2]), y_sign2 * overlap_length_x);
 
-      float ratio1      = macro_ar[macro_id1];
+      float ratio1      = macro_aspect_ratio[macro_id1];
       float macro_area1 = macro_area[macro_id1];
 
-      float ratio2      = macro_ar[macro_id2];
+      float ratio2      = macro_aspect_ratio[macro_id2];
       float macro_area2 = macro_area[macro_id2];
 
       float r_grad1 
-        = overlap_length_x * 0.5f * sqrt(macro_area1 / ratio1)
-        + overlap_length_y * 0.5f * sqrt(macro_area1 / ratio1) / ratio1;
+        = overlap_length_x * 0.25f * sqrt(macro_area1 / ratio1)
+        - overlap_length_y * 0.25f * sqrt(macro_area1 / ratio1) / ratio1;
 
       float r_grad2
-        = overlap_length_x * 0.5f * sqrt(macro_area2 / ratio2)
-        + overlap_length_y * 0.5f * sqrt(macro_area2 / ratio2) / ratio2;
+        = overlap_length_x * 0.25f * sqrt(macro_area2 / ratio2)
+        - overlap_length_y * 0.25f * sqrt(macro_area2 / ratio2) / ratio2;
 
       atomicAdd(&(overlap_grad_r[macro_id1]), -r_grad1);
       atomicAdd(&(overlap_grad_r[macro_id2]), -r_grad2);
@@ -355,7 +355,7 @@ TargetFunction::TargetFunction(
   num_var_     = 3 * num_macro_; // {x, y, aspect_ratio}
   need_export_ = true;
   area_scale_  = 1.0f;
-  lambda_      = 2.0f;
+  lambda_      = 6.0f;
 
   h_solution_.resize(num_var_); 
   // We don't want to store these data permanently

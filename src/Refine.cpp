@@ -29,7 +29,7 @@ MacroPlacer::refineMacroPlace()
   for(int phase = 0; phase < max_phase; phase++)
   {
     float scale = static_cast<float>(phase + 1) / static_cast<float>(max_phase);
-    function->scaleArea(scale * scale);
+    function->scaleArea(scale);
     adam_solver->solve();
     //painter_->saveImage(phase, function->getHpwl(), function->getSumOverlap());
   }
