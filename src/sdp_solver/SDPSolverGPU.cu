@@ -1130,5 +1130,4 @@ SDPSolverGPU::printProgress(
 
 }
 
-
 }

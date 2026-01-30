@@ -139,6 +139,10 @@ class SDPSolverGPU
     CudaVector<int>             d_eq_const_index_;
     CudaVector<int>             d_ineq_const_index_;
 
+    // For Randomization
+    CudaVector<double>          d_mean_;
+    CudaFlattenMatrix<double>   d_covar_;
+
     /* ---------- GPU Function ---------- */
     void solveALM();
     void initializeRho();

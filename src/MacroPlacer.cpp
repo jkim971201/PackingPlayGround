@@ -22,6 +22,8 @@ MacroPlacer::MacroPlacer() : coreLx_(0), coreLy_(0), coreUx_(0), coreUy_(0), tot
 std::pair<double, double>
 MacroPlacer::originalToScaled(double x, double y) const
 {
+  //int offset_x = (coreLx_ + coreUx_) / 2;
+  //int offset_y = (coreLy_ + coreUy_) / 2;
   double scaled_x = (x - coreLx_) / (coreUx_ - coreLx_) * 0.5;
   double scaled_y = (y - coreLy_) / (coreUy_ - coreLy_) * 0.5;
   return {scaled_x, scaled_y};
@@ -67,9 +69,9 @@ MacroPlacer::run()
 
   //suggestByRandomStart();
 
-  //suggestByQP(Lmm_, Lmf_xf_, Lmf_yf_);
+  suggestByQP(Lmm_, Lmf_xf_, Lmf_yf_);
 
-  suggestBySDPRelaxation(true, Lmm_, Lmf_xf_, Lmf_yf_, ineq_constraint_);
+  //suggestBySDPRelaxation(true, Lmm_, Lmf_xf_, Lmf_yf_, ineq_constraint_);
   
   refineMacroPlace();
 
@@ -107,7 +109,7 @@ MacroPlacer::computeIneqConstraint(EigenVector& ineq_constraint)
 
   ineq_constraint.resize(num_overlap_pair);
 
-  const double scale = 1.0 / (coreUx_ - coreLx_) / (coreUy_ - coreLy_);
+  const double scale = 4.0 / (coreUx_ - coreLx_) / (coreUy_ - coreLy_);
 
   int count = 0;
   for(int i = 0; i < num_movable; i++)

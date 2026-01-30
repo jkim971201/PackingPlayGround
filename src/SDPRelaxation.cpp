@@ -1,5 +1,8 @@
+#include <iostream>
+
 #include "Util.h"
 #include "MacroPlacer.h"
+#include "EigenMVN.h"
 
 #include "sdp_solver/SDPInstance.h"
 #include "sdp_solver/SDPSolverCPU.h"
@@ -124,15 +127,21 @@ MacroPlacer::suggestBySDPRelaxation(
   const EigenVector&  Lmf_yf,
   const EigenVector&  ineq_constraint)
 {
+  auto sdp_start = getChronoNow();
+
   auto solution = (use_gpu == true) 
     ? solveSDP_GPU(Lmm, Lmf_xf, Lmf_yf, ineq_constraint)
     : solveSDP_CPU(Lmm, Lmf_xf, Lmf_yf, ineq_constraint);
 
+  const double sdp_time = evalTime(sdp_start);
+  printf("solveSDP        finished (takes %5.2f s)\n", sdp_time);
+
   int movable_id = 0;
+  const int num_movable = movable_.size();
   for(auto& macro : movable_)
   {
-    double x_sdp = solution[0][movable_id];
-    double y_sdp = solution[1][movable_id];
+    double x_sdp = solution[movable_id];
+    double y_sdp = solution[movable_id + num_movable];
     auto [new_cx, new_cy] = scaledToOriginal(x_sdp, y_sdp);
     macro->setCx(new_cx);
     macro->setCy(new_cy);
@@ -140,19 +149,16 @@ MacroPlacer::suggestBySDPRelaxation(
   }
 }
 
-std::vector<std::vector<double>>
+std::vector<double>
 MacroPlacer::solveSDP_CPU(
   const EigenSMatrix& Lmm, 
   const EigenVector&  Lmf_xf,
   const EigenVector&  Lmf_yf,
   const EigenVector&  ineq_constraint)
 {
-  auto sdp_start = getChronoNow();
-
   int num_movable = movable_.size();
 
-  std::vector<std::vector<double>> x_and_y;
-  x_and_y.resize(2, std::vector<double>(num_movable));
+  std::vector<double> x_and_y(2 * num_movable);
 
   auto sdp_inst 
     = makeSDPInstance(num_movable, Lmm, Lmf_xf, Lmf_yf, ineq_constraint);
@@ -161,30 +167,24 @@ MacroPlacer::solveSDP_CPU(
   EigenDMatrix solution = solver.solve();
   for(int i = 0; i < num_movable; i++)
   {
-    x_and_y[0][i] = solution(0, i + 1);
-    x_and_y[1][i] = solution(0, i + 1 + num_movable);
+    x_and_y[i] = solution(0, i + 1);
+    x_and_y[i + num_movable] = solution(0, i + 1 + num_movable);
   }
-
-  const double sdp_time = evalTime(sdp_start);
-  printf("solveSDP        finished (takes %5.2f s)\n", sdp_time);
 
   return x_and_y;
 }
 
 
-std::vector<std::vector<double>>
+std::vector<double>
 MacroPlacer::solveSDP_GPU(
   const EigenSMatrix& Lmm, 
   const EigenVector&  Lmf_xf,
   const EigenVector&  Lmf_yf,
   const EigenVector&  ineq_constraint)
 {
-  auto sdp_start = getChronoNow();
-
   int num_movable = movable_.size();
 
-  std::vector<std::vector<double>> x_and_y;
-  x_and_y.resize(2, std::vector<double>(num_movable));
+  std::vector<double> x_and_y(2 * num_movable);
 
   auto sdp_inst 
     = makeSDPInstance(num_movable, Lmm, Lmf_xf, Lmf_yf, ineq_constraint);
@@ -196,14 +196,70 @@ MacroPlacer::solveSDP_GPU(
   EigenDMatrix gpu_sol = solver_gpu.solve();
   for(int i = 0; i < num_movable; i++)
   {
-    x_and_y[0][i] = gpu_sol(0, i + 1);
-    x_and_y[1][i] = gpu_sol(0, i + 1 + num_movable);
+    x_and_y[i] = gpu_sol(0, i + 1);
+    x_and_y[i + num_movable] = gpu_sol(0, i + 1 + num_movable);
   }
 
-  const double sdp_time = evalTime(sdp_start);
-  printf("solveSDP        finished (takes %5.2f s)\n", sdp_time);
+  //x_and_y = takeRandomization(gpu_sol);
 
   return x_and_y;
+}
+
+std::vector<double>
+MacroPlacer::takeRandomization(const EigenDMatrix& sdp_sol)
+{
+  int num_movable = movable_.size();
+
+  std::vector<double> randomized_solution(2 * num_movable);
+
+  EigenVector mean(num_movable * 2);
+  EigenDMatrix covar(num_movable * 2, num_movable  * 2);
+
+  for(int i = 0; i < num_movable * 2; i++)
+  {
+    mean(i) = sdp_sol(0, i + 1);
+    for(int j = 0; j < num_movable * 2; j++)
+      covar(i, j) = sdp_sol(i + 1, j + 1);
+  }
+
+  covar = covar - mean * mean.transpose();
+
+  Eigen::EigenMultivariateNormal<double> mv_norm(mean, covar);
+
+  EigenDMatrix random_data = mv_norm.samples(1); 
+
+  for(int i = 0; i < 2 * num_movable; i++)
+    randomized_solution[i] = random_data(i, 0);
+
+  int pair_id = 0;
+  double scale_coeff = 1000000000;
+  for(int i = 0; i < num_movable; i++)
+  {
+    double x_i = randomized_solution[i];
+    double y_i = randomized_solution[i + num_movable];
+    for(int j = i + 1; j < num_movable; j++)
+    {
+      double x_j = randomized_solution[j];
+      double y_j = randomized_solution[j + num_movable];
+
+      double x_delta = x_i - x_j;
+      double y_delta = y_i - y_j;
+      double distance = x_delta * x_delta + y_delta * y_delta;
+
+      double constraint = ineq_constraint_(pair_id);
+
+      double temp = distance / constraint;
+      scale_coeff = std::min(temp, scale_coeff);
+      pair_id++;
+    }
+  }
+
+  printf("ScaleCeoff: %f\n", scale_coeff);
+
+  //for(int i = 0; i < randomized_solution.size(); i++)
+  //  randomized_solution[i] *= 2;
+
+  return randomized_solution;
 }
 
 }
