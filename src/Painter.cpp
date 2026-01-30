@@ -156,7 +156,7 @@ Painter::drawMacro(float k_scale, QPainter* painter, const Macro* macro)
     painter->setFont(font);
     pen.setColor(Qt::white);
     painter->setPen(pen);
-    painter->drawText(QPointF(cx, cy), name);
+    //painter->drawText(QPointF(cx, cy), name);
     painter->restore();
   }
 }

@@ -355,7 +355,7 @@ TargetFunction::TargetFunction(
   num_var_     = 3 * num_macro_; // {x, y, aspect_ratio}
   need_export_ = true;
   area_scale_  = 1.0f;
-  lambda_      = 4.0f;
+  lambda_      = 6.0f;
 
   h_solution_.resize(num_var_); 
   // We don't want to store these data permanently
@@ -596,7 +596,7 @@ TargetFunction::iterEndCbk(
   const CudaVector<float>& macro_pos)
 {
   updateParameters();
-  //printProgress(iter);
+  printProgress(iter);
 }
 
 bool 

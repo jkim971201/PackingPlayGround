@@ -75,7 +75,20 @@ class MacroPlacer
 
     void computeIneqConstraint(EigenVector& ineq_constraint);
 
-    std::vector<std::vector<double>> solveSDP(
+    // SDPRelaxation.cpp
+    void suggestBySDPRelaxation(
+      const EigenSMatrix& Lmm,
+      const EigenVector&  Lmf_xf,
+      const EigenVector&  Lmf_yf,
+      const EigenVector&  ineq_constraint);
+
+    std::vector<std::vector<double>> solveSDP_CPU(
+      const EigenSMatrix& Lmm,
+      const EigenVector&  Lmf_xf,
+      const EigenVector&  Lmf_yf,
+      const EigenVector&  ineq_constraint);
+
+    std::vector<std::vector<double>> solveSDP_GPU(
       const EigenSMatrix& Lmm,
       const EigenVector&  Lmf_xf,
       const EigenVector&  Lmf_yf,

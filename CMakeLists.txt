@@ -17,19 +17,20 @@ set(CMAKE_CXX_STANDARD 20)
 set(SRC
 	src/main.cpp
   src/FileIO.cpp
+  src/SDPRelaxation.cpp
   src/MacroPlacer.cpp
 	src/Painter.cpp
   src/Util.cpp
   src/Refine.cpp
-  src/SDPSolverCPU.cpp
+  src/sdp_solver/SDPSolverCPU.cpp
   src/objects/Pin.cpp
   src/objects/Net.cpp
   src/objects/Macro.cpp
 )
 
 set(CUDA_SRC 
-  src/SDPSolverGPU.cu
   src/TargetFunction.cu
+  src/sdp_solver/SDPSolverGPU.cu
   src/nonlinear_solver/AdamSolver.cu
   src/nonlinear_solver/SolverBase.cu
 )

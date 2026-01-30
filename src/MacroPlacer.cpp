@@ -7,9 +7,6 @@
 #include <map>
 #include <QApplication>
 
-#include "SDPInstance.h"
-#include "SDPSolverCPU.h"
-#include "SDPSolverGPU.h"
 #include "MacroPlacer.h"
 #include "Painter.h"
 #include "Util.h"
@@ -19,116 +16,6 @@ extern char** cmd_argv;
 
 namespace macroplacer
 {
-
-void checkCondition(const EigenSMatrix& matrix_sparse)
-{
-  int num_rows = matrix_sparse.rows();
-  EigenDMatrix matrix_dense(num_rows, num_rows);
-
-  for(int i = 0; i < num_rows; i++)
-	{
-	  for(EigenSMatrix::InnerIterator it(matrix_sparse, i); it; ++it)
-      matrix_dense(it.row(), it.col()) = static_cast<double>(it.value());
-  }
-
-  Eigen::SelfAdjointEigenSolver<EigenDMatrix> es(matrix_dense);
-
-  double min_abs_ev = std::numeric_limits<double>::max();
-  double max_abs_ev = std::numeric_limits<double>::min();
-
-  int num_ev = es.eigenvalues().size();
-  for(int i = 0; i < num_ev; i++)
-  {
-    double val = std::abs(es.eigenvalues()(i));
-    min_abs_ev = std::min(val, min_abs_ev);
-    max_abs_ev = std::max(val, max_abs_ev);
-  }
-
-  double cond = max_abs_ev / min_abs_ev;
-
-  //std::cout << "ObjMatrix" << std::endl;
-  //std::cout << obj_matrix_dense << std::endl;
-  //std::cout << "EigenValues" << std::endl;
-  //std::cout << es.eigenvalues() << std::endl;
-  printf("Condition number of Objective Matrix : %f\n", cond);
-}
-
-std::shared_ptr<sdp_solver::SDPInstance> makeSDPInstance(
-  int num_movable,
-  const EigenSMatrix& Lmm,
-  const EigenVector&  Lmf_xf,
-  const EigenVector&  Lmf_yf,
-  const EigenVector&  ineq_constraint)
-{
-  std::shared_ptr<sdp_solver::SDPInstance> sdp_inst
-   = std::make_shared<sdp_solver::SDPInstance>();
-
-  /* Objective Matrix */
-  EigenSMatrix obj_matrix;
-  obj_matrix.resize(num_movable + 2, num_movable + 2);
-
-  obj_matrix.coeffRef(0, 0) = 1;
-  obj_matrix.coeffRef(1, 1) = 1;
-  for(int i = 0; i < Lmm.outerSize(); i++)
-  {
-    for(EigenSMatrix::InnerIterator it(Lmm, i); it; ++it)
-      obj_matrix.coeffRef(it.row() + 2, it.col() + 2) = it.value();
-  }
-
-  for(int i = 0; i < num_movable; i++)
-  {
-    obj_matrix.coeffRef(i + 2, 0) = Lmf_xf(i);
-    obj_matrix.coeffRef(i + 2, 1) = Lmf_yf(i);
-    obj_matrix.coeffRef(0, i + 2) = Lmf_xf(i);
-    obj_matrix.coeffRef(1, i + 2) = Lmf_yf(i);
-  }
-
-  // prune values that are smaller than ref_nonzero * epsilon
-  obj_matrix.prune(/* ref_nonzero */ 1.0, /* epsilon */ 1e-3);
-
-  sdp_inst->setObjectiveMatrix(obj_matrix);
-
-  /* Equality Constraints */
-  EigenSMatrix constr00;
-  constr00.resize(num_movable + 2, num_movable + 2);
-  constr00.coeffRef(0, 0) = 1;
-
-  EigenSMatrix constr01;
-  constr01.resize(num_movable + 2, num_movable + 2);
-  constr01.coeffRef(0, 1) = 1;
-
-  EigenSMatrix constr10;
-  constr10.resize(num_movable + 2, num_movable + 2);
-  constr10.coeffRef(1, 0) = 1;
-
-  EigenSMatrix constr11;
-  constr11.resize(num_movable + 2, num_movable + 2);
-  constr11.coeffRef(1, 1) = 1;
-
-  sdp_inst->addEqualityConstraint(constr00, 1);
-  sdp_inst->addEqualityConstraint(constr01, 0);
-  sdp_inst->addEqualityConstraint(constr10, 0);
-  sdp_inst->addEqualityConstraint(constr11, 1);
-
-  /* Non-overlap Constraints */
-  int count = 0;
-  for(int i = 0; i < num_movable; i++)
-  {
-    for(int j = i + 1; j < num_movable; j++)
-    {
-      EigenSMatrix constr_matrix;
-      constr_matrix.resize(num_movable + 2, num_movable + 2);
-      constr_matrix.coeffRef(i + 2, i + 2) = +1;
-      constr_matrix.coeffRef(i + 2, j + 2) = -1;
-      constr_matrix.coeffRef(j + 2, i + 2) = -1;
-      constr_matrix.coeffRef(j + 2, j + 2) = +1;
-      sdp_inst->addInequalityConstraint(constr_matrix, ineq_constraint(count));
-      count++;
-    }
-  }
-
-  return sdp_inst;
-}
 
 MacroPlacer::MacroPlacer()
   : painter_ (nullptr),
@@ -185,12 +72,7 @@ MacroPlacer::run()
   const double laplacian_time = evalTime(laplacian_start);
   printf("createLaplacian finished (takes %5.2f s)\n", laplacian_time);
 
-  auto sdp_start = getChronoNow();
-
-  auto solution = solveSDP(Lmm_, Lmf_xf_, Lmf_yf_, ineq_constraint_);
-
-  const double sdp_time = evalTime(sdp_start);
-  printf("solveSDP        finished (takes %5.2f s)\n", sdp_time);
+  auto solution = solveSDP_GPU(Lmm_, Lmf_xf_, Lmf_yf_, ineq_constraint_);
 
   int movable_id = 0;
   for(auto& macro : movable_)
@@ -198,6 +80,8 @@ MacroPlacer::run()
     double x_sdp = solution[0][movable_id];
     double y_sdp = solution[1][movable_id];
     auto [new_cx, new_cy] = scaledToOriginal(x_sdp, y_sdp);
+    //new_cx = (coreLx_ + coreUx_) / 2.0f;
+    //new_cy = (coreLy_ + coreUy_) / 2.0f;
     macro->setCx(new_cx);
     macro->setCy(new_cy);
     movable_id++;
@@ -381,48 +265,6 @@ MacroPlacer::extractPartialLaplacian(
   Lmf_yf = Lmf * yf;
 }
 
-std::vector<std::vector<double>>
-MacroPlacer::solveSDP(
-  const EigenSMatrix& Lmm, 
-  const EigenVector&  Lmf_xf,
-  const EigenVector&  Lmf_yf,
-  const EigenVector&  ineq_constraint)
-{
-  int num_movable = movable_.size();
-
-  std::vector<std::vector<double>> x_and_y;
-  x_and_y.resize(2, std::vector<double>(num_movable));
-
-  auto sdp_inst 
-    = makeSDPInstance(num_movable, Lmm, Lmf_xf, Lmf_yf, ineq_constraint);
-
-//  sdp_solver::SDPSolverCPU solver(sdp_inst);
-//  EigenDMatrix solution = solver.solve();
-//  for(int i = 0; i < solution.rows() - 2; i++)
-//  {
-//    x_and_y[0][i] = solution(0, i + 2);
-//    x_and_y[1][i] = solution(1, i + 2);
-//  }
-//
-//  printf("ObjVal : %f\n", solver.getObjectiveValue());
-
-  checkCondition(sdp_inst->obj_matrix);
-
-  // Test on GPU
-  sdp_solver::SDPSolverGPU solver_gpu(sdp_inst);
-  EigenDMatrix gpu_sol = solver_gpu.solve();
-
-  //std::cout << "Solution from GPU" << std::endl;
-  //std::cout << gpu_sol << std::endl;
-
-  for(int i = 0; i < gpu_sol.rows() - 2; i++)
-  {
-    x_and_y[0][i] = gpu_sol(0, i + 2);
-    x_and_y[1][i] = gpu_sol(1, i + 2);
-  }
-
-  return x_and_y;
-}
 
 void
 MacroPlacer::prepareVisualization()

@@ -25,13 +25,13 @@ MacroPlacer::refineMacroPlace()
     = std::make_unique<AdamSolver>(function);
 
   // Restart ADAM
-  const int max_phase = 100;
+  const int max_phase = 200;
   for(int phase = 0; phase < max_phase; phase++)
   {
     float scale = static_cast<float>(phase + 1) / static_cast<float>(max_phase);
     function->scaleArea(scale);
     adam_solver->solve();
-    //painter_->saveImage(phase, function->getHpwl(), function->getSumOverlap());
+    painter_->saveImage(phase, function->getHpwl(), function->getSumOverlap());
   }
 }
 
