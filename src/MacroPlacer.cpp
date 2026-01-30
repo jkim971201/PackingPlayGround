@@ -67,9 +67,9 @@ MacroPlacer::run()
 
   //suggestByRandomStart();
 
-  //suggestByQP(Lmm_, Lmf_xf_, Lmf_yf_);
+  suggestByQP(Lmm_, Lmf_xf_, Lmf_yf_);
 
-  suggestBySDPRelaxation(true, Lmm_, Lmf_xf_, Lmf_yf_, ineq_constraint_);
+  //suggestBySDPRelaxation(true, Lmm_, Lmf_xf_, Lmf_yf_, ineq_constraint_);
   
   refineMacroPlace();
 

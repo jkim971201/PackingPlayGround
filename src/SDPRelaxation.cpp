@@ -192,7 +192,7 @@ MacroPlacer::solveSDP_GPU(
   //checkCondition(sdp_inst->obj_matrix);
 
   sdp_solver::SDPSolverGPU solver_gpu(sdp_inst);
-  solver_gpu.setVerbose(false);
+  solver_gpu.setVerbose(true);
   EigenDMatrix gpu_sol = solver_gpu.solve();
   for(int i = 0; i < gpu_sol.rows() - 2; i++)
   {

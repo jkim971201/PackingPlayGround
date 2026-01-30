@@ -347,8 +347,9 @@ SDPSolverGPU::findTargetRank()
   int optimal_rank 
     = static_cast<int>(std::sqrt(2 * num_constr) + 1.0);
   //target_rank_ = std::min(optimal_rank, n_);
-  target_rank_ = std::sqrt(num_constr / 4);
-  //target_rank_ = std::sqrt(num_constr);
+  //target_rank_ = std::sqrt(num_constr / 2);
+  target_rank_ = std::min(int(std::sqrt(num_constr)), n_);
+  //target_rank_ = 10;
 }
 
 void
@@ -990,7 +991,7 @@ SDPSolverGPU::initParams()
   param_.tol_alm           = 1e-4;
   param_.rho_certificate   = 0.1;
   param_.rho_update_factor = 1.05;
-  param_.verbose           = true;
+  param_.verbose           = false;
 }
 
 void
