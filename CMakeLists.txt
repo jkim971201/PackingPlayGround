@@ -18,6 +18,7 @@ set(SRC
 	src/main.cpp
   src/FileIO.cpp
   src/SDPRelaxation.cpp
+  src/Suggest.cpp
   src/MacroPlacer.cpp
 	src/Painter.cpp
   src/Util.cpp

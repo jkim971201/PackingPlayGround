@@ -118,12 +118,26 @@ std::shared_ptr<sdp_solver::SDPInstance> makeSDPInstance(
 
 void 
 MacroPlacer::suggestBySDPRelaxation(
+  bool  use_gpu,
   const EigenSMatrix& Lmm,
   const EigenVector&  Lmf_xf,
   const EigenVector&  Lmf_yf,
   const EigenVector&  ineq_constraint)
 {
+  auto solution = (use_gpu == true) 
+    ? solveSDP_GPU(Lmm, Lmf_xf, Lmf_yf, ineq_constraint)
+    : solveSDP_CPU(Lmm, Lmf_xf, Lmf_yf, ineq_constraint);
 
+  int movable_id = 0;
+  for(auto& macro : movable_)
+  {
+    double x_sdp = solution[0][movable_id];
+    double y_sdp = solution[1][movable_id];
+    auto [new_cx, new_cy] = scaledToOriginal(x_sdp, y_sdp);
+    macro->setCx(new_cx);
+    macro->setCy(new_cy);
+    movable_id++;
+  }
 }
 
 std::vector<std::vector<double>>
@@ -180,7 +194,6 @@ MacroPlacer::solveSDP_GPU(
   sdp_solver::SDPSolverGPU solver_gpu(sdp_inst);
   solver_gpu.setVerbose(false);
   EigenDMatrix gpu_sol = solver_gpu.solve();
-
   for(int i = 0; i < gpu_sol.rows() - 2; i++)
   {
     x_and_y[0][i] = gpu_sol(0, i + 2);

@@ -1,3 +1,4 @@
+#include "Util.h"
 #include "MacroPlacer.h"
 #include "TargetFunction.h"
 #include "Painter.h"
@@ -10,6 +11,8 @@ namespace macroplacer
 void 
 MacroPlacer::refineMacroPlace()
 {
+  auto refine_start = getChronoNow();
+
   float x_min = static_cast<float>(coreLx_);
   float y_min = static_cast<float>(coreLy_);
   float x_max = static_cast<float>(coreUx_);
@@ -33,6 +36,9 @@ MacroPlacer::refineMacroPlace()
     adam_solver->solve();
     painter_->saveImage(phase, function->getHpwl(), function->getSumOverlap());
   }
+
+  const double refine_time = evalTime(refine_start);
+  printf("Refine          finished (takes %5.2f s)\n", refine_time);
 }
 
 }

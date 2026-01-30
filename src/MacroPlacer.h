@@ -77,6 +77,7 @@ class MacroPlacer
 
     // SDPRelaxation.cpp
     void suggestBySDPRelaxation(
+      bool  use_gpu,
       const EigenSMatrix& Lmm,
       const EigenVector&  Lmf_xf,
       const EigenVector&  Lmf_yf,
@@ -93,6 +94,14 @@ class MacroPlacer
       const EigenVector&  Lmf_xf,
       const EigenVector&  Lmf_yf,
       const EigenVector&  ineq_constraint);
+
+    // Suggest.cpp
+    void suggestByQP(
+      const EigenSMatrix& Lmm,
+      const EigenVector&  Lmf_xf,
+      const EigenVector&  Lmf_yf);
+
+    void suggestByRandomStart();
 
     // FileIO.cpp
     void readBlock(const std::filesystem::path& file);

@@ -17,14 +17,7 @@ extern char** cmd_argv;
 namespace macroplacer
 {
 
-MacroPlacer::MacroPlacer()
-  : painter_ (nullptr),
-    coreLx_  (0),
-    coreLy_  (0),
-    coreUx_  (0),
-    coreUy_  (0),
-    totalWL_ (0)
-{}
+MacroPlacer::MacroPlacer() : coreLx_(0), coreLy_(0), coreUx_(0), coreUy_(0), totalWL_(0) {}
 
 std::pair<double, double>
 MacroPlacer::originalToScaled(double x, double y) const
@@ -72,34 +65,16 @@ MacroPlacer::run()
   const double laplacian_time = evalTime(laplacian_start);
   printf("createLaplacian finished (takes %5.2f s)\n", laplacian_time);
 
-  auto solution = solveSDP_GPU(Lmm_, Lmf_xf_, Lmf_yf_, ineq_constraint_);
+  //suggestByRandomStart();
 
-  int movable_id = 0;
-  for(auto& macro : movable_)
-  {
-    double x_sdp = solution[0][movable_id];
-    double y_sdp = solution[1][movable_id];
-    auto [new_cx, new_cy] = scaledToOriginal(x_sdp, y_sdp);
-    //new_cx = (coreLx_ + coreUx_) / 2.0f;
-    //new_cy = (coreLy_ + coreUy_) / 2.0f;
-    macro->setCx(new_cx);
-    macro->setCy(new_cy);
-    movable_id++;
-  }
+  //suggestByQP(Lmm_, Lmf_xf_, Lmf_yf_);
 
-  auto refine_start = getChronoNow();
-
+  suggestBySDPRelaxation(true, Lmm_, Lmf_xf_, Lmf_yf_, ineq_constraint_);
+  
   refineMacroPlace();
 
-  const double refine_time = evalTime(refine_start);
-
-  printf("Refine          finished (takes %5.2f s)\n", refine_time);
-
   updateWL();
-
-  printf("TotalWL : %ld\n", totalWL_);
-
-  writeBookshelf();
+  // writeBookshelf();
 }
 
 void
@@ -264,7 +239,6 @@ MacroPlacer::extractPartialLaplacian(
   Lmf_xf = Lmf * xf;
   Lmf_yf = Lmf * yf;
 }
-
 
 void
 MacroPlacer::prepareVisualization()
