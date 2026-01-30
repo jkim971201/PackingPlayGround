@@ -131,15 +131,15 @@ SDPSolverCPU::solve()
                        Domain::greaterThan(h_[i]));
   }
 
-  solver->setSolverParam("numThreads", "16");
+  solver->setSolverParam("numThreads", "8");
   solver->solve();
 
   // Get Objective value
   primal_obj_ = solver->primalObjValue();
 
   // Solution (x vector)
-  auto sol_x = *(X->slice( nint( {0, 2} ), nint( {1, n_} ))->level());
-  auto sol_y = *(X->slice( nint( {1, 2} ), nint( {2, n_} ))->level());
+  //auto sol_x = *(X->slice( nint( {0, 2} ), nint( {1, n_} ))->level());
+  //auto sol_y = *(X->slice( nint( {1, 2} ), nint( {2, n_} ))->level());
 
   cuda_linalg::EigenDMatrix dense_matrix(n_, n_);
   for(int i = 0; i < n_; i++)

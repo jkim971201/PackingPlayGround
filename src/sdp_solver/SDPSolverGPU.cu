@@ -61,11 +61,14 @@ __global__ void constraint_computation_kernel(
   }
   else if(constraint_id >= num_eq_constraint && constraint_id < num_constraint)
   {
+    int num_movable = (num_row - 1) / 2;
     int ineq_id = constraint_id - num_eq_constraint;
     int flatten_index = ineq_constraint_index[ineq_id];
     // id1 = row, id2 = col
     int id1 = flatten_index % num_row;
     int id2 = flatten_index / num_row;
+    int id3 = id1 + num_movable;
+    int id4 = id2 + num_movable;
     assert(id1 < id2);
     double weight_val = weight[constraint_id] * 2.0;
 
@@ -79,6 +82,16 @@ __global__ void constraint_computation_kernel(
     atomicAdd(&(output[index2]), -weight_val);
     atomicAdd(&(output[index3]), -weight_val);
     atomicAdd(&(output[index4]), +weight_val);
+
+    int index5 = id3 + num_row * id3; // (id3, id3) -> +1
+    int index6 = id3 + num_row * id4; // (id3, id4) -> -1
+    int index7 = id4 + num_row * id3; // (id4, id3) -> -1
+    int index8 = id4 + num_row * id4; // (id4, id4) -> +1
+  
+    atomicAdd(&(output[index5]), +weight_val);
+    atomicAdd(&(output[index6]), -weight_val);
+    atomicAdd(&(output[index7]), -weight_val);
+    atomicAdd(&(output[index8]), +weight_val);
   }
 }
 
@@ -198,6 +211,7 @@ SDPSolverGPU::makeSparseMatrixM()
 
   for(int i = 0; i < p_; i++)
   {
+    bool is_visited = false;
     const EigenSMatrix& G_eigen = G_[i];
     const int outer_size = G_eigen.outerSize();
     for(int k = 0; k < outer_size; k++)
@@ -212,17 +226,21 @@ SDPSolverGPU::makeSparseMatrixM()
         sparseM.coeffRef(i + m_, row + col * n_) = val;
 
         // For compressed matrix
-        if(row < col)
+        if(row < col && !is_visited)
+        {
           ineq_const_index.push_back(row + col * n_);
+          is_visited = true; // one index pair for each ineq constraint
+        }
       }
     }
   }
 
+  // NOTE: 2 * p_ can be buggy in general sdps
   assert(eq_const_index.size() == m_);
   assert(ineq_const_index.size() == p_);
 
   d_eq_const_index_.resize(m_);
-  d_ineq_const_index_.resize(p_);
+  d_ineq_const_index_.resize(ineq_const_index.size());
 
   thrust::copy(eq_const_index.begin(), eq_const_index.end(),
                d_eq_const_index_.begin());

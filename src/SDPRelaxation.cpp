@@ -51,22 +51,27 @@ std::shared_ptr<sdp_solver::SDPInstance> makeSDPInstance(
 
   /* Objective Matrix */
   EigenSMatrix obj_matrix;
-  obj_matrix.resize(num_movable + 2, num_movable + 2);
+  obj_matrix.resize(2 * num_movable + 1, 2 * num_movable + 1);
 
-  obj_matrix.coeffRef(0, 0) = 1;
-  obj_matrix.coeffRef(1, 1) = 1;
   for(int i = 0; i < Lmm.outerSize(); i++)
   {
     for(EigenSMatrix::InnerIterator it(Lmm, i); it; ++it)
-      obj_matrix.coeffRef(it.row() + 2, it.col() + 2) = it.value();
+    {
+      int row = it.row();
+      int col = it.col();
+      double val = it.value();
+      obj_matrix.coeffRef(row + 1, col + 1) =  val;
+      obj_matrix.coeffRef(row + 1 + num_movable, col + 1 + num_movable) = val;
+    }
   }
 
   for(int i = 0; i < num_movable; i++)
   {
-    obj_matrix.coeffRef(i + 2, 0) = Lmf_xf(i);
-    obj_matrix.coeffRef(i + 2, 1) = Lmf_yf(i);
-    obj_matrix.coeffRef(0, i + 2) = Lmf_xf(i);
-    obj_matrix.coeffRef(1, i + 2) = Lmf_yf(i);
+    obj_matrix.coeffRef(i + 1, 0) = Lmf_xf(i);
+    obj_matrix.coeffRef(0, i + 1) = Lmf_xf(i);
+
+    obj_matrix.coeffRef(i + 1 + num_movable, 0) = Lmf_yf(i);
+    obj_matrix.coeffRef(0, i + 1 + num_movable) = Lmf_yf(i);
   }
 
   // prune values that are smaller than ref_nonzero * epsilon
@@ -76,25 +81,9 @@ std::shared_ptr<sdp_solver::SDPInstance> makeSDPInstance(
 
   /* Equality Constraints */
   EigenSMatrix constr00;
-  constr00.resize(num_movable + 2, num_movable + 2);
+  constr00.resize(2 * num_movable + 1, 2 * num_movable + 1);
   constr00.coeffRef(0, 0) = 1;
-
-  EigenSMatrix constr01;
-  constr01.resize(num_movable + 2, num_movable + 2);
-  constr01.coeffRef(0, 1) = 1;
-
-  EigenSMatrix constr10;
-  constr10.resize(num_movable + 2, num_movable + 2);
-  constr10.coeffRef(1, 0) = 1;
-
-  EigenSMatrix constr11;
-  constr11.resize(num_movable + 2, num_movable + 2);
-  constr11.coeffRef(1, 1) = 1;
-
   sdp_inst->addEqualityConstraint(constr00, 1);
-  sdp_inst->addEqualityConstraint(constr01, 0);
-  sdp_inst->addEqualityConstraint(constr10, 0);
-  sdp_inst->addEqualityConstraint(constr11, 1);
 
   /* Non-overlap Constraints */
   int count = 0;
@@ -103,11 +92,22 @@ std::shared_ptr<sdp_solver::SDPInstance> makeSDPInstance(
     for(int j = i + 1; j < num_movable; j++)
     {
       EigenSMatrix constr_matrix;
-      constr_matrix.resize(num_movable + 2, num_movable + 2);
-      constr_matrix.coeffRef(i + 2, i + 2) = +1;
-      constr_matrix.coeffRef(i + 2, j + 2) = -1;
-      constr_matrix.coeffRef(j + 2, i + 2) = -1;
-      constr_matrix.coeffRef(j + 2, j + 2) = +1;
+      constr_matrix.resize(2 * num_movable + 1, 2 * num_movable + 1);
+
+      int i_x = i + 1;
+      int j_x = j + 1;
+      constr_matrix.coeffRef(i_x, i_x) = +1;
+      constr_matrix.coeffRef(i_x, j_x) = -1;
+      constr_matrix.coeffRef(j_x, i_x) = -1;
+      constr_matrix.coeffRef(j_x, j_x) = +1;
+
+      int i_y = i + 1 + num_movable;
+      int j_y = j + 1 + num_movable;
+      constr_matrix.coeffRef(i_y, i_y) = +1;
+      constr_matrix.coeffRef(i_y, j_y) = -1;
+      constr_matrix.coeffRef(j_y, i_y) = -1;
+      constr_matrix.coeffRef(j_y, j_y) = +1;
+
       sdp_inst->addInequalityConstraint(constr_matrix, ineq_constraint(count));
       count++;
     }
@@ -159,10 +159,10 @@ MacroPlacer::solveSDP_CPU(
 
   sdp_solver::SDPSolverCPU solver(sdp_inst);
   EigenDMatrix solution = solver.solve();
-  for(int i = 0; i < solution.rows() - 2; i++)
+  for(int i = 0; i < num_movable; i++)
   {
-    x_and_y[0][i] = solution(0, i + 2);
-    x_and_y[1][i] = solution(1, i + 2);
+    x_and_y[0][i] = solution(0, i + 1);
+    x_and_y[1][i] = solution(0, i + 1 + num_movable);
   }
 
   const double sdp_time = evalTime(sdp_start);
@@ -194,10 +194,10 @@ MacroPlacer::solveSDP_GPU(
   sdp_solver::SDPSolverGPU solver_gpu(sdp_inst);
   solver_gpu.setVerbose(true);
   EigenDMatrix gpu_sol = solver_gpu.solve();
-  for(int i = 0; i < gpu_sol.rows() - 2; i++)
+  for(int i = 0; i < num_movable; i++)
   {
-    x_and_y[0][i] = gpu_sol(0, i + 2);
-    x_and_y[1][i] = gpu_sol(1, i + 2);
+    x_and_y[0][i] = gpu_sol(0, i + 1);
+    x_and_y[1][i] = gpu_sol(0, i + 1 + num_movable);
   }
 
   const double sdp_time = evalTime(sdp_start);
