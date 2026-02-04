@@ -17,23 +17,26 @@ extern char** cmd_argv;
 namespace macroplacer
 {
 
-MacroPlacer::MacroPlacer() : coreLx_(0), coreLy_(0), coreUx_(0), coreUy_(0), totalWL_(0) {}
+MacroPlacer::MacroPlacer() 
+  : coreLx_(0), coreLy_(0), coreUx_(0), coreUy_(0), totalWL_(0) {}
 
 std::pair<double, double>
 MacroPlacer::originalToScaled(double x, double y) const
 {
-  //int offset_x = (coreLx_ + coreUx_) / 2;
-  //int offset_y = (coreLy_ + coreUy_) / 2;
-  double scaled_x = (x - coreLx_) / (coreUx_ - coreLx_) * 0.5;
-  double scaled_y = (y - coreLy_) / (coreUy_ - coreLy_) * 0.5;
+  int offset_x = (coreLx_ + coreUx_) / 2;
+  int offset_y = (coreLy_ + coreUy_) / 2;
+  double scaled_x = (x - offset_x) / (coreUx_ - coreLx_);
+  double scaled_y = (y - offset_y) / (coreUy_ - coreLy_);
   return {scaled_x, scaled_y};
 }
 
 std::pair<double, double>
 MacroPlacer::scaledToOriginal(double x, double y) const
 {
-  double original_x = 2.0 * x * (coreUx_ - coreLx_) + coreLx_;
-  double original_y = 2.0 * y * (coreUy_ - coreLy_) + coreLy_;
+  int offset_x = (coreLx_ + coreUx_) / 2;
+  int offset_y = (coreLy_ + coreUy_) / 2;
+  double original_x = x * (coreUx_ - coreLx_) + offset_x;
+  double original_y = y * (coreUy_ - coreLy_) + offset_y;
   return {original_x, original_y};
 }
 
@@ -69,9 +72,9 @@ MacroPlacer::run()
 
   //suggestByRandomStart();
 
-  suggestByQP(Lmm_, Lmf_xf_, Lmf_yf_);
+  //suggestByQP(Lmm_, Lmf_xf_, Lmf_yf_);
 
-  //suggestBySDPRelaxation(true, Lmm_, Lmf_xf_, Lmf_yf_, ineq_constraint_);
+  suggestBySDPRelaxation(true, Lmm_, Lmf_xf_, Lmf_yf_, ineq_constraint_);
   
   refineMacroPlace();
 
@@ -109,7 +112,7 @@ MacroPlacer::computeIneqConstraint(EigenVector& ineq_constraint)
 
   ineq_constraint.resize(num_overlap_pair);
 
-  const double scale = 4.0 / (coreUx_ - coreLx_) / (coreUy_ - coreLy_);
+  const double scale = 1.0 / (coreUx_ - coreLx_) / (coreUy_ - coreLy_);
 
   int count = 0;
   for(int i = 0; i < num_movable; i++)

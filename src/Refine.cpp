@@ -1,3 +1,5 @@
+#include <fstream>
+
 #include "Util.h"
 #include "MacroPlacer.h"
 #include "TargetFunction.h"
@@ -34,11 +36,19 @@ MacroPlacer::refineMacroPlace()
     float scale = static_cast<float>(phase + 1) / static_cast<float>(max_phase);
     function->scaleArea(scale);
     adam_solver->solve();
-    painter_->saveImage(phase, function->getHpwl(), function->getSumOverlap());
+    //painter_->saveImage(phase, function->getHpwl(), function->getSumOverlap());
   }
 
   const double refine_time = evalTime(refine_start);
   printf("Refine          finished (takes %5.2f s)\n", refine_time);
+
+  // for sweep experiments
+  std::ofstream log_output;
+  log_output.open("temp_log.txt");
+
+  log_output << function->getHpwl() << " ";
+  log_output << function->getSumOverlap() << std::endl;
+  printf("REPORT %f %f\n", function->getHpwl(), function->getSumOverlap());
 }
 
 }

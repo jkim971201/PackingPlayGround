@@ -59,6 +59,7 @@ class SDPSolverGPU
     Parameters param_;
 
     int target_rank_;
+    int target_rank_input_;
 
     double rho_;
 

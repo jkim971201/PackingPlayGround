@@ -192,7 +192,7 @@ MacroPlacer::solveSDP_GPU(
   //checkCondition(sdp_inst->obj_matrix);
 
   sdp_solver::SDPSolverGPU solver_gpu(sdp_inst);
-  solver_gpu.setVerbose(true);
+  solver_gpu.setVerbose(false);
   EigenDMatrix gpu_sol = solver_gpu.solve();
   for(int i = 0; i < num_movable; i++)
   {
@@ -200,7 +200,7 @@ MacroPlacer::solveSDP_GPU(
     x_and_y[i + num_movable] = gpu_sol(0, i + 1 + num_movable);
   }
 
-  //x_and_y = takeRandomization(gpu_sol);
+  x_and_y = takeRandomization(gpu_sol);
 
   return x_and_y;
 }
@@ -230,34 +230,6 @@ MacroPlacer::takeRandomization(const EigenDMatrix& sdp_sol)
 
   for(int i = 0; i < 2 * num_movable; i++)
     randomized_solution[i] = random_data(i, 0);
-
-  int pair_id = 0;
-  double scale_coeff = 1000000000;
-  for(int i = 0; i < num_movable; i++)
-  {
-    double x_i = randomized_solution[i];
-    double y_i = randomized_solution[i + num_movable];
-    for(int j = i + 1; j < num_movable; j++)
-    {
-      double x_j = randomized_solution[j];
-      double y_j = randomized_solution[j + num_movable];
-
-      double x_delta = x_i - x_j;
-      double y_delta = y_i - y_j;
-      double distance = x_delta * x_delta + y_delta * y_delta;
-
-      double constraint = ineq_constraint_(pair_id);
-
-      double temp = distance / constraint;
-      scale_coeff = std::min(temp, scale_coeff);
-      pair_id++;
-    }
-  }
-
-  printf("ScaleCeoff: %f\n", scale_coeff);
-
-  //for(int i = 0; i < randomized_solution.size(); i++)
-  //  randomized_solution[i] *= 2;
 
   return randomized_solution;
 }

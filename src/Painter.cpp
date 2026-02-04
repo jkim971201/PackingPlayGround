@@ -113,7 +113,11 @@ Painter::drawNet(QPainter* painter, const Net* net)
 }
 
 void
-Painter::drawMacro(float k_scale, QPainter* painter, const Macro* macro)
+Painter::drawMacro(
+  bool draw_circle,
+  float k_scale, 
+  QPainter* painter, 
+  const Macro* macro)
 {
   QPen pen_for_circle;
   pen_for_circle.setWidthF(3.5f);
@@ -125,17 +129,18 @@ Painter::drawMacro(float k_scale, QPainter* painter, const Macro* macro)
   painter->setBrush(brush_for_circle);
   painter->setPen(pen_for_circle);
 
-  int macro_w = macro->getWidth();
-  int macro_h = macro->getHeight();
-  double rect_area = macro_w * macro_h;
-
+  double rect_area = macro->getOriginalArea();
   constexpr double k_pi = std::numbers::pi;
   double radius = std::sqrt(rect_area / k_pi) * k_scale;
 
   double cx = macro->getCx() * k_scale;
   double cy = macro->getCy() * k_scale;
 
-  //painter->drawEllipse(QPointF(cx, cy), radius, radius);
+  if(draw_circle == true)
+  {
+    painter->drawEllipse(QPointF(cx, cy), radius, radius);
+    return;
+  }
 
   float dx = macro->getTempWidth() * k_scale;
   float dy = macro->getTempHeight() * k_scale;
@@ -215,7 +220,7 @@ Painter::saveImage(int iter, float hpwl, float sum_overlap)
   drawDieRect(k_scale, &painter);
   
   for(auto macro_ptr : macros_)
-    drawMacro(k_scale, &painter, macro_ptr);
+    drawMacro(false, k_scale, &painter, macro_ptr);
 
   auto get_padded_string = [] (size_t size, const std::string& str)
   {
@@ -270,7 +275,7 @@ Painter::paintEvent(QPaintEvent* event)
     drawNet(&painter, net);
 
   for(const auto macro : macros_)
-    drawMacro(scale_, &painter, macro);
+    drawMacro(true, scale_, &painter, macro);
 
   QFont font = painter.font();
   font.setBold(true);

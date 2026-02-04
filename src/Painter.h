@@ -49,7 +49,11 @@ class Painter : public QWidget
     void drawNet(QPainter* painter, const Net* net);
 
     void drawDieRect(float k_scale, QPainter* painter) const;
-    void drawMacro(float k_scale, QPainter* painter, const Macro* macro);
+    void drawMacro(
+      bool draw_circle,
+      float k_scale, 
+      QPainter* painter, 
+      const Macro* macro);
 
     QSize window_size_;
 
