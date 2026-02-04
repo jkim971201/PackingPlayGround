@@ -200,7 +200,7 @@ MacroPlacer::solveSDP_GPU(
     x_and_y[i + num_movable] = gpu_sol(0, i + 1 + num_movable);
   }
 
-  x_and_y = takeRandomization(gpu_sol);
+  //x_and_y = takeRandomization(gpu_sol);
 
   return x_and_y;
 }

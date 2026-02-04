@@ -55,7 +55,8 @@ class MacroPlacer
   private:
 
     // Refine.cpp
-    void refineMacroPlace();
+    void refineCircular();
+    void refineRectangular();
 
     // MacroPlacer.cpp
     std::pair<double, double> originalToScaled(double x, double y) const;

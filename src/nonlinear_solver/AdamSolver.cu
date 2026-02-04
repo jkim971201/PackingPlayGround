@@ -4,9 +4,9 @@
 #include <cmath>
 
 #include "AdamSolver.h"
-#include "TargetFunction.h"
-
 #include "Util.h"
+
+#include "problem_instance/ProblemInstance.h"
 #include "cuda_linalg/CudaVectorAlgebra.h"
 
 namespace macroplacer
@@ -41,7 +41,7 @@ __global__ void updateDirectionKernelAdam(
   }
 }
 
-AdamSolver::AdamSolver(std::shared_ptr<TargetFunction> problem)
+AdamSolver::AdamSolver(std::shared_ptr<ProblemInstance> problem)
   : SolverBase(problem)
 {
   alpha_   = 1e-1; // learning_rate

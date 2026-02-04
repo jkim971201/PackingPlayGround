@@ -1,5 +1,5 @@
-#ifndef TARGET_FUNCTION_H
-#define TARGET_FUNCTION_H
+#ifndef REFINE_QCQP_H
+#define REFINE_QCQP_H
 
 #include <limits>
 #include "cuda_linalg/CudaVector.h"
@@ -17,7 +17,7 @@ class Painter;
 
 using namespace cuda_linalg;
 
-class TargetFunction
+class RefineQCQP : public TargetFunction
 {
   public:
 

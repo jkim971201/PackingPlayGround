@@ -1,19 +1,19 @@
 #include "SolverBase.h"
-#include "TargetFunction.h"
+#include "problem_instance/ProblemInstance.h"
 
 namespace macroplacer
 {
 
 SolverBase::SolverBase() : num_var_(0) {}
 
-SolverBase::SolverBase(std::shared_ptr<TargetFunction> problem)
+SolverBase::SolverBase(std::shared_ptr<ProblemInstance> problem)
 {
   target_function_ = problem;
   initializeSolverBase(target_function_);
 }
 
 void
-SolverBase::initializeSolverBase(std::shared_ptr<TargetFunction> target_function)
+SolverBase::initializeSolverBase(std::shared_ptr<ProblemInstance> target_function)
 {
   num_var_ = target_function->getNumVariable();
 

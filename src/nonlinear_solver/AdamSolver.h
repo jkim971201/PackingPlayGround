@@ -10,7 +10,7 @@ class AdamSolver : public SolverBase
 {
   public:
 
-    AdamSolver(std::shared_ptr<TargetFunction> problem);
+    AdamSolver(std::shared_ptr<ProblemInstance> problem);
 
     // Main Loop
     void solve() override;

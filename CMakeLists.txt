@@ -30,7 +30,8 @@ set(SRC
 )
 
 set(CUDA_SRC 
-  src/TargetFunction.cu
+  src/problem_instance/ProblemInstance.cu
+  src/problem_instance/RefineFloorplan.cu
   src/sdp_solver/SDPSolverGPU.cu
   src/nonlinear_solver/AdamSolver.cu
   src/nonlinear_solver/SolverBase.cu

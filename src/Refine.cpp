@@ -2,16 +2,23 @@
 
 #include "Util.h"
 #include "MacroPlacer.h"
-#include "TargetFunction.h"
 #include "Painter.h"
 
+#include "problem_instance/ProblemInstance.h"
+#include "problem_instance/RefineFloorplan.h"
 #include "nonlinear_solver/AdamSolver.h"
 
 namespace macroplacer
 {
 
 void 
-MacroPlacer::refineMacroPlace()
+MacroPlacer::refineCircular()
+{
+
+}
+
+void 
+MacroPlacer::refineRectangular()
 {
   auto refine_start = getChronoNow();
 
@@ -20,8 +27,8 @@ MacroPlacer::refineMacroPlace()
   float x_max = static_cast<float>(coreUx_);
   float y_max = static_cast<float>(coreUy_);
 
-  std::shared_ptr<TargetFunction> function
-    = std::make_shared<TargetFunction>(
+  std::shared_ptr<RefineFloorplan> function
+    = std::make_shared<RefineFloorplan>(
       x_min, y_min, x_max, y_max,
       painter_,
       movable_, net_ptrs_, pin_ptrs_);
@@ -40,7 +47,7 @@ MacroPlacer::refineMacroPlace()
   }
 
   const double refine_time = evalTime(refine_start);
-  printf("Refine          finished (takes %5.2f s)\n", refine_time);
+  printf("refineRect      finished (takes %5.2f s)\n", refine_time);
 
   // for sweep experiments
   std::ofstream log_output;

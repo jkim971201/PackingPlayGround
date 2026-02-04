@@ -10,14 +10,14 @@ namespace macroplacer
 
 using namespace cuda_linalg;
 
-class TargetFunction;
+class ProblemInstance;
 
 class SolverBase 
 {
   public:
 
     SolverBase();
-    SolverBase(std::shared_ptr<TargetFunction> problem);
+    SolverBase(std::shared_ptr<ProblemInstance> problem);
 
     // Pure virtual function
     virtual void solve() = 0;
@@ -30,11 +30,11 @@ class SolverBase
     virtual void setInitialSolution() = 0;
     virtual void updateOneIteration(int iter) = 0;
 
-    void initializeSolverBase(std::shared_ptr<TargetFunction> target_function);
+    void initializeSolverBase(std::shared_ptr<ProblemInstance> target_function);
 
     int num_var_;
 
-    std::shared_ptr<TargetFunction> target_function_;
+    std::shared_ptr<ProblemInstance> target_function_;
 
     /* Device Array */
     CudaVector<float> d_cur_var_;

@@ -76,7 +76,7 @@ MacroPlacer::run()
 
   suggestBySDPRelaxation(true, Lmm_, Lmf_xf_, Lmf_yf_, ineq_constraint_);
   
-  refineMacroPlace();
+  refineRectangular();
 
   updateWL();
   // writeBookshelf();

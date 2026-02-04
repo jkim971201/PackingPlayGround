@@ -275,7 +275,7 @@ Painter::paintEvent(QPaintEvent* event)
     drawNet(&painter, net);
 
   for(const auto macro : macros_)
-    drawMacro(true, scale_, &painter, macro);
+    drawMacro(false, scale_, &painter, macro);
 
   QFont font = painter.font();
   font.setBold(true);
