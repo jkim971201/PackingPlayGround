@@ -32,9 +32,10 @@ set(SRC
 set(CUDA_SRC 
   src/problem_instance/ProblemInstance.cu
   src/problem_instance/RefineFloorplan.cu
-  src/sdp_solver/SDPSolverGPU.cu
+  src/problem_instance/RefineQCQP.cu
   src/nonlinear_solver/AdamSolver.cu
   src/nonlinear_solver/SolverBase.cu
+  src/sdp_solver/SDPSolverGPU.cu
 )
 
 set_source_files_properties(CUDA_SRC PROPERTIES LANGUAGE CUDA)

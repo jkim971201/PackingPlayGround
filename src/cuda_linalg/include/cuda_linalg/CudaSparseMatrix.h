@@ -51,6 +51,14 @@ class CudaSparseMatrix : public CudaObject
   
     void initialize(const EigenSMatrix& mat_eigen)
     {
+      cudaDataType_t data_type;
+      if constexpr (std::is_same_v<T, float>)
+        data_type = CUDA_R_32F;
+      else if constexpr (std::is_same_v<T, double>)
+        data_type = CUDA_R_64F;
+      else
+        assert(0);
+
       num_row_ = mat_eigen.rows();
       num_col_ = mat_eigen.cols();
 	    const int num_nonzero = mat_eigen.nonZeros();
@@ -101,7 +109,7 @@ class CudaSparseMatrix : public CudaObject
           CUSPARSE_INDEX_32I,
           CUSPARSE_INDEX_32I,
           CUSPARSE_INDEX_BASE_ZERO, 
-          CUDA_R_64F) )  /* cudaDataType */ 
+          data_type) )  /* cudaDataType */ 
     
       T alpha = 1.0;
       T beta  = 0.0;
@@ -113,8 +121,8 @@ class CudaSparseMatrix : public CudaObject
       T* d_vec_x_ptr = d_vec_x.data();
       T* d_vec_y_ptr = d_vec_y.data();
 
-      CHECK_CUSPARSE( cusparseCreateDnVec(&vec_x_descr, num_col_, (void*)(d_vec_x_ptr), CUDA_R_64F) )
-      CHECK_CUSPARSE( cusparseCreateDnVec(&vec_y_descr, num_row_, (void*)(d_vec_y_ptr), CUDA_R_64F) )
+      CHECK_CUSPARSE( cusparseCreateDnVec(&vec_x_descr, num_col_, (void*)(d_vec_x_ptr), data_type) )
+      CHECK_CUSPARSE( cusparseCreateDnVec(&vec_y_descr, num_row_, (void*)(d_vec_y_ptr), data_type) )
 
       size_t buffer_size_mv = 0;
       /* For NonTranspose(Matrix)-Vector Mult */
@@ -127,7 +135,7 @@ class CudaSparseMatrix : public CudaObject
           vec_x_descr,
           &beta,
           vec_y_descr,
-          CUDA_R_64F,
+          data_type,
           CUSPARSE_SPMV_ALG_DEFAULT,
           &buffer_size_mv) )
 
@@ -144,7 +152,7 @@ class CudaSparseMatrix : public CudaObject
           vec_x_descr,
           &beta,
           vec_y_descr,
-          CUDA_R_64F,
+          data_type,
           CUSPARSE_SPMV_ALG_DEFAULT,
           d_buffer_ptr) )
 

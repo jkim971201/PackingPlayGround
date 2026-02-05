@@ -9,10 +9,6 @@ constexpr float k_float_max = std::numeric_limits<float>::infinity();
 namespace macroplacer
 {
 
-class Macro;
-class Net;
-class Pin;
-
 class Painter;
 
 using namespace cuda_linalg;

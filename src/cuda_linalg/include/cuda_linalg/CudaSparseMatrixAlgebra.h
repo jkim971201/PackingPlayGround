@@ -8,19 +8,22 @@ namespace cuda_linalg
 {
 
 /* Compute y = Ax, A is not const since buffer of A is used in SpMV. */
-void sparseMatrixVectorMult(CudaSparseMatrix<double>& d_A,
-                      const CudaVector<double>& d_x,
-                            CudaVector<double>& d_y);
+template<typename T>
+void sparseMatrixVectorMult(CudaSparseMatrix<T>& d_A,
+                      const CudaVector<T>& d_x,
+                            CudaVector<T>& d_y);
 
 /* Print Sparse Matrix in Dense Matrix Format */
-void printCudaSparseMatrixinDense(const CudaSparseMatrix<double>& mat);
+template<typename T>
+void printCudaSparseMatrixinDense(const CudaSparseMatrix<T>& mat);
 
 /* Make Dense Matrix (Row Major) from Sprse Matrix (CSR) */
-void makeDenseRowMajorFromSparseCSR(const CudaSparseMatrix<double>&  d_A_sparse,
-                                                 CudaVector<double>& d_A_dense);
+template<typename T>
+void makeDenseRowMajorFromSparseCSR(const CudaSparseMatrix<T>& d_A_sparse, CudaVector<T>& d_A_dense);
 
 /* Print Sparse Matrix in CSR Format */
-void printCudaSparseMatrixinCSR(const CudaSparseMatrix<double>& mat);
+template<typename T>
+void printCudaSparseMatrixinCSR(const CudaSparseMatrix<T>& mat);
 
 }
 
