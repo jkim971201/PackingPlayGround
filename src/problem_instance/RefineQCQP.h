@@ -17,11 +17,20 @@ class RefineQCQP : public ProblemInstance
 
     // Constructor
     RefineQCQP(
+      float scale_x,
+      float scale_y,
+      float offset_x,
+      float offset_y,
+      float x_min, 
+      float y_min, 
+      float x_max, 
+      float y_max,
       std::shared_ptr<Painter> painter,
       std::vector<Macro*>& macros,
       const EigenSMatrix& Lmm,
       const EigenVector& Lmf_xf,
-      const EigenVector& Lmf_yf);
+      const EigenVector& Lmf_yf,
+      const EigenVector& ineq_constraint);
 
     // APIs
     // var : {x_vector, y_vector, ... }
@@ -51,11 +60,23 @@ class RefineQCQP : public ProblemInstance
     int num_pair_;
     float lambda_;
 
+    float x_min_;
+    float y_min_;
+    float x_max_;
+    float y_max_;
+
+    float scale_x_;
+    float scale_y_;
+    float offset_x_;
+    float offset_y_;
+
     std::vector<Macro*> macro_ptrs_;
 
     /* Data for Wirelength gradient computation */
     CudaVector<float> d_Lmf_xf_;
     CudaVector<float> d_Lmf_yf_;
+    CudaVector<float> d_x_slot_;
+    CudaVector<float> d_y_slot_;
     CudaSparseMatrix<float> d_Lmm_;
 
     CudaVector<float> d_wl_grad_x_;
@@ -67,6 +88,7 @@ class RefineQCQP : public ProblemInstance
     /* Data for Overlap gradient computation */
     CudaVector<int>   d_index_pair_;
     CudaVector<float> d_radius_;
+    CudaVector<float> d_ineq_constraint_;
     CudaVector<float> d_overlap_length_;
     CudaVector<float> d_overlap_grad_;
 
@@ -84,6 +106,9 @@ class RefineQCQP : public ProblemInstance
     void exportToDb(const CudaVector<float>& macro_pos);
 
     void printProgress(int iter) const;
+
+    std::pair<float, float> convertToScale(float x, float y) const;
+    std::pair<float, float> revertToOriginal(float x, float y) const;
 };
 
 }; // namespace macroplacer

@@ -1,3 +1,5 @@
+#include <cassert>
+
 #include "cuda_linalg/CudaUtil.h"
 #include "cuda_linalg/CudaVector.h"
 
@@ -7,28 +9,58 @@ namespace cuda_linalg
 template<typename T>
 CudaVector<T>::CudaVector()
 {
+  cudaDataType_t data_type;
+  if constexpr (std::is_same_v<T, int>)
+    data_type = CUDA_R_32I;
+  else if constexpr (std::is_same_v<T, float>)
+    data_type = CUDA_R_32F;
+  else if constexpr (std::is_same_v<T, double>)
+    data_type = CUDA_R_64F;
+  else
+    assert(0);
+
   T* d_data_ptr = thrust::raw_pointer_cast(d_data_.data());
-  CHECK_CUSPARSE( cusparseCreateDnVec(&descriptor_, 0, d_data_ptr, CUDA_R_64F) )
+  CHECK_CUSPARSE( cusparseCreateDnVec(&descriptor_, 0, d_data_ptr, data_type) )
 }
 
 template<typename T>
 CudaVector<T>::CudaVector(const std::vector<T>& h_vector) 
 {
+  cudaDataType_t data_type;
+  if constexpr (std::is_same_v<T, int>)
+    data_type = CUDA_R_32I;
+  else if constexpr (std::is_same_v<T, float>)
+    data_type = CUDA_R_32F;
+  else if constexpr (std::is_same_v<T, double>)
+    data_type = CUDA_R_64F;
+  else
+    assert(0);
+
   size_t n = h_vector.size();
   d_data_.resize(n);
   thrust::copy(h_vector.begin(), h_vector.end(), d_data_.begin());
   T* d_data_ptr = thrust::raw_pointer_cast(d_data_.data());
-  CHECK_CUSPARSE( cusparseCreateDnVec(&descriptor_, n, d_data_ptr, CUDA_R_64F) )
+  CHECK_CUSPARSE( cusparseCreateDnVec(&descriptor_, n, d_data_ptr, data_type) )
 }
 
 template<typename T>
 CudaVector<T>::CudaVector(size_t n)
 {
+  cudaDataType_t data_type;
+  if constexpr (std::is_same_v<T, int>)
+    data_type = CUDA_R_32I;
+  else if constexpr (std::is_same_v<T, float>)
+    data_type = CUDA_R_32F;
+  else if constexpr (std::is_same_v<T, double>)
+    data_type = CUDA_R_64F;
+  else
+    assert(0);
+
   d_data_.resize(n); 
   thrust::fill(d_data_.begin(), d_data_.end(), 0);
 
   T* d_data_ptr = thrust::raw_pointer_cast(d_data_.data());
-  CHECK_CUSPARSE( cusparseCreateDnVec(&descriptor_, n, d_data_ptr, CUDA_R_64F) )
+  CHECK_CUSPARSE( cusparseCreateDnVec(&descriptor_, n, d_data_ptr, data_type) )
 }
 
 template<typename T>
@@ -45,13 +77,23 @@ template<typename T>
 void 
 CudaVector<T>::resize(size_t n, T val) 
 { 
+  cudaDataType_t data_type;
+  if constexpr (std::is_same_v<T, int>)
+    data_type = CUDA_R_32I;
+  else if constexpr (std::is_same_v<T, float>)
+    data_type = CUDA_R_32F;
+  else if constexpr (std::is_same_v<T, double>)
+    data_type = CUDA_R_64F;
+  else
+    assert(0);
+
   d_data_.clear(); 
   d_data_.resize(n); 
   thrust::fill(d_data_.begin(), d_data_.end(), val);
 
   CHECK_CUSPARSE( cusparseDestroyDnVec(descriptor_) )
   T* d_data_ptr = thrust::raw_pointer_cast(d_data_.data());
-  CHECK_CUSPARSE( cusparseCreateDnVec(&descriptor_, n, d_data_ptr, CUDA_R_64F) )
+  CHECK_CUSPARSE( cusparseCreateDnVec(&descriptor_, n, d_data_ptr, data_type) )
 }
 
 // This is to separate header and .cu

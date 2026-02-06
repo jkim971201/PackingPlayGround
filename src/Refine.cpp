@@ -4,17 +4,52 @@
 #include "MacroPlacer.h"
 #include "Painter.h"
 
-#include "problem_instance/ProblemInstance.h"
 #include "problem_instance/RefineFloorplan.h"
+#include "problem_instance/RefineQCQP.h"
 #include "nonlinear_solver/AdamSolver.h"
 
 namespace macroplacer
 {
 
 void 
-MacroPlacer::refineCircular()
+MacroPlacer::refineQCQP()
 {
+  auto refine_start = getChronoNow();
 
+  float scale_x = 1.0f / static_cast<float>(coreUx_ - coreLx_);
+  float scale_y = 1.0f / static_cast<float>(coreUy_ - coreLy_);
+
+  float offset_x = (coreLx_ + coreUx_) / 2.0f;
+  float offset_y = (coreLy_ + coreUy_) / 2.0f;
+
+  std::shared_ptr<RefineQCQP> augmented_lagrangian
+    = std::make_shared<RefineQCQP>(
+      scale_x,  /* scale_x  */
+      scale_y,  /* scale_y  */
+      offset_x, /* offset_x */
+      offset_y, /* offset_y */
+      -0.5f,    /* x_min */
+      -0.5f,    /* y_min */
+      +0.5f,    /* x_max */
+      +0.5f,    /* y_max */
+      painter_,
+      movable_,
+      Lmm_,
+      Lmf_xf_,
+      Lmf_yf_,
+      ineq_constraint_);
+
+  std::unique_ptr<AdamSolver> adam_solver
+    = std::make_unique<AdamSolver>(augmented_lagrangian);
+
+  adam_solver->setInitialStepSize(1.0f);
+
+  const int max_phase = 50;
+  for(int phase = 0; phase < max_phase; phase++)
+    adam_solver->solve();
+
+  const double refine_time = evalTime(refine_start);
+  printf("refineQCQP      finished (takes %5.2f s)\n", refine_time);
 }
 
 void 
@@ -47,7 +82,7 @@ MacroPlacer::refineRectangular()
   }
 
   const double refine_time = evalTime(refine_start);
-  printf("refineRect      finished (takes %5.2f s)\n", refine_time);
+  printf("refineFloorplan finished (takes %5.2f s)\n", refine_time);
 
   // for sweep experiments
   std::ofstream log_output;

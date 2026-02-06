@@ -44,7 +44,8 @@ __global__ void updateDirectionKernelAdam(
 AdamSolver::AdamSolver(std::shared_ptr<ProblemInstance> problem)
   : SolverBase(problem)
 {
-  alpha_   = 1e-1; // learning_rate
+  // alpha := learning_Rate
+  alpha_initial_ = 1e-1; 
   beta1_   = 0.9;
   beta2_   = 0.999;
   beta1k_  = beta1_;
@@ -55,10 +56,16 @@ AdamSolver::AdamSolver(std::shared_ptr<ProblemInstance> problem)
 }
 
 void
+AdamSolver::setInitialStepSize(float val)
+{
+  alpha_initial_ = val;
+}
+
+void
 AdamSolver::initSolver()
 {
   // Step #1. Reset parameters
-  alpha_  = 1e-1; // learning_rate
+  alpha_  = alpha_initial_;
   beta1k_ = beta1_;
   beta2k_ = beta2_;
 

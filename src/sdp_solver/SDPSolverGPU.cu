@@ -355,8 +355,8 @@ SDPSolverGPU::initializeRho()
   int num_constr = m_ + p_;
   double num_constr_double = static_cast<double>(num_constr);
   //rho_ = 1.0 / std::sqrt(num_constr_double);
-  rho_ = 1.0 * std::sqrt(num_constr_double);
-  //rho_ = 1.0 * std::sqrt(n_);
+  //rho_ = 1.0 * std::sqrt(num_constr_double);
+  rho_ = 1.0 * std::sqrt(n_);
 
   if(const char* env_rho = std::getenv("ENV_RHO"))
     rho_ = std::stof(std::string(env_rho));
@@ -369,11 +369,11 @@ SDPSolverGPU::findTargetRank()
   int optimal_rank 
     = static_cast<int>(std::sqrt(2 * num_constr) + 1.0);
   //target_rank_ = std::min(optimal_rank, n_);
-  //target_rank_ = std::sqrt(num_constr / 2);
-  target_rank_ = std::min(int(std::sqrt(num_constr)), n_);
+  //target_rank_ = std::min(int(std::sqrt(num_constr)), n_);
+  target_rank_ = std::sqrt(num_constr / 2);
 
-  if(const char* env_rank = std::getenv("ENV_RANK"))
-    target_rank_ = std::stoi(std::string(env_rank));
+  //if(const char* env_rank = std::getenv("ENV_RANK"))
+  //  target_rank_ = std::stoi(std::string(env_rank));
 }
 
 void

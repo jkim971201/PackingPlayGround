@@ -55,7 +55,7 @@ class MacroPlacer
   private:
 
     // Refine.cpp
-    void refineCircular();
+    void refineQCQP();
     void refineRectangular();
 
     // MacroPlacer.cpp

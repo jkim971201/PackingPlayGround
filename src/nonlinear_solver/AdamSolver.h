@@ -15,6 +15,8 @@ class AdamSolver : public SolverBase
     // Main Loop
     void solve() override;
 
+    void setInitialStepSize(float val);
+
   private:
 
     void initSolver() override;
@@ -33,6 +35,7 @@ class AdamSolver : public SolverBase
 
     // Adam Optimizer
     float alpha_;
+    float alpha_initial_;
     float beta1_;
     float beta2_;
 
