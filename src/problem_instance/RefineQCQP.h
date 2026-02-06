@@ -52,13 +52,19 @@ class RefineQCQP : public ProblemInstance
     void iterBgnCbk(int iter) override;
     void iterEndCbk(int iter, double runtime, const CudaVector<float>& var) override;
 
+    void updateSlack();
+
+    void updateDual();
+
     bool checkConvergence() const override;
 
   private:
 
     int num_macro_;
     int num_pair_;
-    float lambda_;
+    float rho_;
+    float constraint_inf_norm_;
+    float grad_norm_;
 
     float x_min_;
     float y_min_;
@@ -71,6 +77,11 @@ class RefineQCQP : public ProblemInstance
     float offset_y_;
 
     std::vector<Macro*> macro_ptrs_;
+
+    /* These are for Augemented Lagrangian Iteration */
+    CudaVector<float> d_slack_;
+    CudaVector<float> d_dual_;
+    CudaVector<float> d_dual_workspace_;
 
     /* Data for Wirelength gradient computation */
     CudaVector<float> d_Lmf_xf_;

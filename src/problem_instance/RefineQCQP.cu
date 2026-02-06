@@ -8,6 +8,24 @@
 namespace macroplacer
 {
 
+__global__ void slack_projection_kernel(
+  const int     num_dual,
+  const float   rho,
+  const float*  overlap_length,
+  const float*  lambda,
+  const float*  ineq_constraint_value,
+        float*  y) 
+{
+  const int constraint_id = blockIdx.x * blockDim.x + threadIdx.x;
+  if(constraint_id < num_dual)
+  {
+    float ineq_val_i = ineq_constraint_value[constraint_id];
+    float g_i        = overlap_length[constraint_id];
+    float lambda_i   = lambda[constraint_id];
+    y[constraint_id] = max(g_i - lambda_i / rho, ineq_val_i);
+  }
+}
+
 __global__ void clipCircleToChipBoundaryKernel(
   const int    num_macro,
   const float  x_min,
@@ -138,7 +156,10 @@ RefineQCQP::RefineQCQP(
   num_macro_ = movable_macros.size();
   num_pair_  = num_macro_ * (num_macro_ - 1) / 2;
   num_var_   = 2 * num_macro_; // {x, y, aspect_ratio}
-  lambda_    = 12.0f;
+  rho_       = num_macro_ / 5.0f;
+
+  if(const char* env_rho = std::getenv("ENV_RHO"))
+    rho_ = std::stof(std::string(env_rho));
 
   h_solution_.resize(num_var_); 
 
@@ -199,14 +220,23 @@ RefineQCQP::RefineQCQP(
   std::vector<float> h_ineq_constraint;
   h_ineq_constraint.resize(num_pair_);
 
+  constraint_inf_norm_ = 0.0f;
   for(int i = 0; i < num_pair_; i++)
-    h_ineq_constraint[i] = ineq_constraint(i);
+  {
+    float constraint_value = ineq_constraint(i);
+    h_ineq_constraint[i] = constraint_value;
+    constraint_inf_norm_ = std::max(constraint_value, constraint_inf_norm_);
+  }
 
   d_index_pair_.resize(num_pair_);
   d_overlap_length_.resize(num_pair_);
   d_overlap_grad_.resize(num_var_);
   d_radius_.resize(num_macro_);
   d_ineq_constraint_.resize(num_pair_);
+
+  d_dual_.resize(num_pair_);
+  d_dual_workspace_.resize(num_pair_);
+  d_slack_.resize(num_pair_);
 
   d_index_pair_ = h_index_pair;
   d_radius_ = h_radius;
@@ -222,7 +252,9 @@ RefineQCQP::updatePointAndGetGrad(const CudaVector<float>& var, CudaVector<float
   // For Overlap SubGrad
   computeCircleOverlapSubGrad(var, d_overlap_grad_);
 
-  vectorAdd(1.0f, lambda_, d_wl_grad_, d_overlap_grad_, grad);
+  vectorAdd(1.0f, rho_, d_wl_grad_, d_overlap_grad_, grad);
+
+  grad_norm_ = compute2Norm(grad);
 }
 
 void 
@@ -259,12 +291,13 @@ RefineQCQP::updateParameters()
 void
 RefineQCQP::printProgress(int iter) const
 {
-  //printf("Iter: %4d SumOverlap: %8f\n", iter, sum_overlap_length_);
+  printf("Iter: %4d SumOverlap: %8f\n", iter, sum_overlap_length_);
 }
 
 void 
 RefineQCQP::solveBgnCbk()
 {
+
 }
 
 void 
@@ -285,13 +318,19 @@ RefineQCQP::iterEndCbk(
   const CudaVector<float>& macro_pos)
 {
   updateParameters();
-  printProgress(iter);
+  //printProgress(iter);
 }
 
 bool 
 RefineQCQP::checkConvergence() const
 {
-  return false;
+  float rho_certificate_tol = 1.0f / rho_;
+  float rho_certificate_val = grad_norm_ / (1.0 + constraint_inf_norm_);
+
+  if(rho_certificate_val < rho_certificate_tol)
+    return true;
+  else 
+    return false;
 }
 
 void
@@ -347,6 +386,14 @@ RefineQCQP::computeCircleOverlapSubGrad(
     d_overlap_length_.data(),
     overlap_grad.data(),               /* overlap_grad_x */
     overlap_grad.data() + num_macro_); /* overlap_grad_y */
+
+  // dual_workspace = - y - lambda / rho
+  vectorAdd(-1.0f, -1.0f / rho_, d_slack_, d_dual_, d_dual_workspace_);
+
+  // dual_workspace = g - y - lambda / rho
+  vectorAxpy(+1.0f, d_overlap_length_, d_dual_workspace_);
+
+  vectorElementWiseMult(overlap_grad, d_dual_workspace_, overlap_grad);
 }
 
 void
@@ -363,6 +410,32 @@ RefineQCQP::exportToDb(const CudaVector<float>& d_solution)
     macro_ptr->setCx(new_cx);
     macro_ptr->setCy(new_cy);
   }
+}
+
+void
+RefineQCQP::updateSlack()
+{
+  const int num_dual = num_pair_;
+  const int num_block = num_dual;
+  const int num_thread = 16;
+
+  slack_projection_kernel<<<num_block, num_thread>>>(
+    num_dual,
+    rho_,
+    d_overlap_length_.data(),
+    d_dual_.data(),
+    d_ineq_constraint_.data(),
+    d_slack_.data() );
+}
+
+void
+RefineQCQP::updateDual()
+{
+  // dual_workspace = rho * (g - y)
+  vectorAdd(+rho_, -rho_, d_overlap_length_, d_slack_, d_dual_workspace_);
+
+  // lambda = lambda + rho * (g - y)
+  vectorAxpy(+1.0f, d_dual_workspace_, d_dual_);
 }
 
 }; // namespace macroplacer

@@ -315,6 +315,16 @@ template void vectorAdd(
   const CudaVector<double>& b,
         CudaVector<double>& c);
 
+template void vectorElementWiseMult(
+  const CudaVector<float>& a,
+  const CudaVector<float>& b,
+        CudaVector<float>& c);
+
+template void vectorElementWiseMult(
+  const CudaVector<double>& a,
+  const CudaVector<double>& b,
+        CudaVector<double>& c);
+
 template float  innerProduct(const CudaVector<float>& a, const CudaVector<float>& b);
 template double innerProduct(const CudaVector<double>& a, const CudaVector<double>& b);
 

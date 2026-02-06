@@ -42,11 +42,13 @@ MacroPlacer::refineQCQP()
   std::unique_ptr<AdamSolver> adam_solver
     = std::make_unique<AdamSolver>(augmented_lagrangian);
 
-  adam_solver->setInitialStepSize(1.0f);
-
-  const int max_phase = 50;
+  const int max_phase = 10;
   for(int phase = 0; phase < max_phase; phase++)
+  {
     adam_solver->solve();
+    augmented_lagrangian->updateSlack();
+    augmented_lagrangian->updateDual();
+  }
 
   const double refine_time = evalTime(refine_start);
   printf("refineQCQP      finished (takes %5.2f s)\n", refine_time);

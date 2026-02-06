@@ -147,6 +147,8 @@ MacroPlacer::suggestBySDPRelaxation(
     macro->setCy(new_cy);
     movable_id++;
   }
+
+  refineQCQP();
 }
 
 std::vector<double>

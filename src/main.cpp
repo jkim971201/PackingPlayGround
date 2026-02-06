@@ -62,11 +62,11 @@ int main(int argc, char **argv)
   std::filesystem::path nets_file(net_file_str);
 
   mpl.readFile(block_file, pl_file, nets_file);
-  mpl.prepareVisualization();
+  //mpl.prepareVisualization();
 
   mpl.run();
 
-  mpl.show();
+  //mpl.show();
 
   return 0;
 }

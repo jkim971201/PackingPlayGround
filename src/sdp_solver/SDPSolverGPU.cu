@@ -358,8 +358,8 @@ SDPSolverGPU::initializeRho()
   //rho_ = 1.0 * std::sqrt(num_constr_double);
   rho_ = 1.0 * std::sqrt(n_);
 
-  if(const char* env_rho = std::getenv("ENV_RHO"))
-    rho_ = std::stof(std::string(env_rho));
+  //if(const char* env_rho = std::getenv("ENV_RHO"))
+  //  rho_ = std::stof(std::string(env_rho));
 }
 
 void
@@ -541,7 +541,7 @@ inline double quarticFunction(double a, double b, double c, double d, double x)
   return a * x * x * x * x + b * x * x * x + c * x * x + d * x;
 }
 
-inline int solve_qubic(
+inline int solve_cubic(
   double a,  
   double b, 
   double c, 
@@ -618,7 +618,7 @@ SDPSolverGPU::lineSearchLbfgs(
                  + 2.0 * innerProduct(ARDT, d_linesearch_workspace_);
 
   std::vector<double> roots(3, 0.0);
-  int num_roots = solve_qubic(4 * a, 3 * b, 2 * c, d, roots);
+  int num_roots = solve_cubic(4 * a, 3 * b, 2 * c, d, roots);
   assert(num_roots > 0);
 
   const double stepsize_max = 1.0;
